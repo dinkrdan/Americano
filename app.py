@@ -14,7 +14,6 @@ class TournamentGenerator:
         
     def create_default_players(self, total_players):
         """Create balanced default players with mixed genders and ratings"""
-        # Fixed name lists - corrected gender assignments
         first_names_male = ['Alex', 'Ben', 'Charlie', 'Dan', 'Ethan', 'Gavin', 'Henry', 'Ian', 'Jack', 'Kyle', 'Liam', 'Mason', 'Noah', 'Owen', 'Paul']
         first_names_female = ['Alice', 'Beth', 'Clara', 'Diana', 'Eve', 'Fiona', 'Grace', 'Holly', 'Iris', 'Julia', 'Kate', 'Luna', 'Maya', 'Nina', 'Olivia']
         last_names = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Taylor', 'Wilson', 'Moore', 'Jackson', 'White']
@@ -29,7 +28,6 @@ class TournamentGenerator:
         for i in range(num_female):
             rating = round(random.uniform(3.0, 4.5), 1)
             
-            # Generate unique name
             max_attempts = 100
             attempts = 0
             while attempts < max_attempts:
@@ -37,13 +35,11 @@ class TournamentGenerator:
                 last_name = random.choice(last_names)
                 full_name = f"{first_name} {last_name}"
                 
-                # Check if name is unique
                 if not any(p['name'] == full_name for p in players):
                     break
                 attempts += 1
             
             if attempts >= max_attempts:
-                # Fallback: use index to ensure uniqueness
                 full_name = f"{random.choice(first_names_female)} {random.choice(last_names)}{i+1}"
                 first_name = full_name.split()[0]
             
@@ -59,7 +55,6 @@ class TournamentGenerator:
         for i in range(num_male):
             rating = round(random.uniform(3.0, 4.5), 1)
             
-            # Generate unique name
             max_attempts = 100
             attempts = 0
             while attempts < max_attempts:
@@ -67,13 +62,11 @@ class TournamentGenerator:
                 last_name = random.choice(last_names)
                 full_name = f"{first_name} {last_name}"
                 
-                # Check if name is unique
                 if not any(p['name'] == full_name for p in players):
                     break
                 attempts += 1
             
             if attempts >= max_attempts:
-                # Fallback: use index to ensure uniqueness
                 full_name = f"{random.choice(first_names_male)} {random.choice(last_names)}{i+1}"
                 first_name = full_name.split()[0]
             
@@ -91,26 +84,133 @@ class TournamentGenerator:
         """Validate that no player appears more than once in a round"""
         all_players_in_round = []
         
-        for match in matches:
+        for match_idx, match in enumerate(matches):
             team_a, team_b = match
-            for player in team_a + team_b:
-                player_id = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
-                all_players_in_round.append(player_id)
+            for team_name, team in [('A', team_a), ('B', team_b)]:
+                for player_idx, player in enumerate(team):
+                    player_id = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
+                    all_players_in_round.append({
+                        'id': player_id,
+                        'match': match_idx,
+                        'team': team_name,
+                        'position': player_idx
+                    })
         
         # Check for duplicates
-        seen = set()
-        duplicates = set()
-        for player_id in all_players_in_round:
-            if player_id in seen:
-                duplicates.add(player_id)
-            seen.add(player_id)
+        player_assignments = defaultdict(list)
+        for assignment in all_players_in_round:
+            player_assignments[assignment['id']].append(assignment)
+        
+        duplicates = {pid: assignments for pid, assignments in player_assignments.items() if len(assignments) > 1}
         
         if duplicates:
-            print(f"ERROR: Found duplicate player assignments in round: {duplicates}")
+            print(f"ERROR: Found duplicate player assignments:")
+            for player_id, assignments in duplicates.items():
+                print(f"  {player_id} appears in:")
+                for assignment in assignments:
+                    print(f"    Match {assignment['match']} Team {assignment['team']} Position {assignment['position']}")
             return False, duplicates
         
         print(f"VALIDATION: Round assignments valid - {len(all_players_in_round)} unique players assigned")
         return True, None
+
+    def assign_players_to_courts_safely(self, round_players, total_courts, avoid_mm_vs_ff=True, use_rating_balance=True):
+        """Assign players to courts with strict duplicate prevention"""
+        matches = []
+        used_players = set()
+        
+        # Create a list of available players with their indices
+        available_players = [(i, player) for i, player in enumerate(round_players)]
+        
+        for court in range(total_courts):
+            print(f"DEBUG: Assigning court {court + 1}")
+            
+            # Need 4 players for this court
+            court_players = []
+            players_needed = 4
+            
+            # Get 4 unique players for this court
+            attempts = 0
+            max_attempts = 100
+            
+            while len(court_players) < players_needed and attempts < max_attempts:
+                if len(available_players) < players_needed - len(court_players):
+                    print(f"ERROR: Not enough available players for court {court + 1}")
+                    return None
+                
+                # Randomly select a player we haven't used yet
+                if available_players:
+                    player_idx = random.randint(0, len(available_players) - 1)
+                    original_idx, player = available_players.pop(player_idx)
+                    
+                    player_id = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
+                    
+                    if player_id not in used_players:
+                        court_players.append(player)
+                        used_players.add(player_id)
+                        print(f"DEBUG: Assigned {player_id} to court {court + 1}")
+                    else:
+                        print(f"WARNING: Player {player_id} already used, skipping")
+                
+                attempts += 1
+            
+            if len(court_players) < 4:
+                print(f"ERROR: Could not assign 4 unique players to court {court + 1}")
+                return None
+            
+            # Assign to teams (2 vs 2)
+            team_a = court_players[:2]
+            team_b = court_players[2:]
+            
+            # Apply gender balancing WITHIN this court only
+            if avoid_mm_vs_ff:
+                team_a_genders = [p.get('gender', 'M') for p in team_a]
+                team_b_genders = [p.get('gender', 'M') for p in team_b]
+                
+                # If one team is all male and other all female, try to swap within the court
+                if (all(g == 'M' for g in team_a_genders) and all(g == 'F' for g in team_b_genders)) or \
+                   (all(g == 'F' for g in team_a_genders) and all(g == 'M' for g in team_b_genders)):
+                    # Swap one player between teams within this court
+                    team_a[1], team_b[1] = team_b[1], team_a[1]
+                    print(f"DEBUG: Applied gender balancing swap within court {court + 1}")
+            
+            # Apply rating balancing WITHIN this court only
+            if use_rating_balance:
+                team_a_rating = sum(p.get('rating', 3.5) for p in team_a)
+                team_b_rating = sum(p.get('rating', 3.5) for p in team_b)
+                
+                rating_diff = abs(team_a_rating - team_b_rating)
+                if rating_diff > 1.0:
+                    # Try swapping players within this court to balance
+                    best_diff = rating_diff
+                    best_swap = None
+                    
+                    for i in range(2):
+                        for j in range(2):
+                            # Create temporary teams for testing
+                            temp_team_a = team_a.copy()
+                            temp_team_b = team_b.copy()
+                            temp_team_a[i], temp_team_b[j] = temp_team_b[j], temp_team_a[i]
+                            
+                            new_a_rating = sum(p.get('rating', 3.5) for p in temp_team_a)
+                            new_b_rating = sum(p.get('rating', 3.5) for p in temp_team_b)
+                            new_diff = abs(new_a_rating - new_b_rating)
+                            
+                            if new_diff < best_diff:
+                                best_diff = new_diff
+                                best_swap = (i, j)
+                    
+                    if best_swap:
+                        i, j = best_swap
+                        team_a[i], team_b[j] = team_b[j], team_a[i]
+                        print(f"DEBUG: Applied rating balancing swap within court {court + 1}")
+            
+            matches.append([team_a, team_b])
+            print(f"DEBUG: Court {court + 1} final assignment:")
+            print(f"  Team A: {[p.get('name', p.get('firstName', 'Unknown')) for p in team_a]}")
+            print(f"  Team B: {[p.get('name', p.get('firstName', 'Unknown')) for p in team_b]}")
+        
+        return matches
 
     def generate_enhanced_tournament(self, courts, players_list, rounds, skip_players=None, avoid_mm_vs_ff=True, use_rating_balance=True, rating_factor=3):
         """Enhanced tournament generation with skip players and advanced options"""
@@ -131,76 +231,25 @@ class TournamentGenerator:
             return {"error": f"Not enough players available. Need {players_per_round}, have {len(available_players)}"}
         
         # Multiple attempts to generate valid assignments
-        max_attempts = 10
+        max_attempts = 20
         for attempt in range(max_attempts):
             print(f"DEBUG: Generation attempt {attempt + 1}")
             
-            # Select players for this round
-            round_players = available_players[:players_per_round].copy()  # Make a copy to avoid modifying original
+            # Select players for this round and shuffle
+            round_players = available_players[:players_per_round].copy()
             sit_outs = [p.get('name', f"{p.get('firstName', '')} {p.get('lastName', '')}".strip()) for p in available_players[players_per_round:]]
             
             # Shuffle players for randomness
             random.shuffle(round_players)
             
-            print(f"DEBUG: Selected {len(round_players)} players for round")
-            print(f"DEBUG: Players: {[p.get('name', p.get('firstName', 'Unknown')) for p in round_players]}")
+            print(f"DEBUG: Selected players: {[p.get('name', p.get('firstName', 'Unknown')) for p in round_players]}")
             
-            # Generate matches for this round
-            matches = []
+            # Use safe assignment method
+            matches = self.assign_players_to_courts_safely(round_players, total_courts, avoid_mm_vs_ff, use_rating_balance)
             
-            # Assign players to courts using non-overlapping slices
-            for court in range(total_courts):
-                start_idx = court * 4
-                team_a = round_players[start_idx:start_idx + 2]
-                team_b = round_players[start_idx + 2:start_idx + 4]
-                
-                print(f"DEBUG: Court {court + 1} - Team A: {[p.get('name', p.get('firstName', 'Unknown')) for p in team_a]}")
-                print(f"DEBUG: Court {court + 1} - Team B: {[p.get('name', p.get('firstName', 'Unknown')) for p in team_b]}")
-                
-                # Apply gender balancing if requested
-                if avoid_mm_vs_ff:
-                    team_a_genders = [p.get('gender', 'M') for p in team_a]
-                    team_b_genders = [p.get('gender', 'M') for p in team_b]
-                    
-                    # If one team is all male and other all female, try to swap within the match
-                    if (all(g == 'M' for g in team_a_genders) and all(g == 'F' for g in team_b_genders)) or \
-                       (all(g == 'F' for g in team_a_genders) and all(g == 'M' for g in team_b_genders)):
-                        # Swap one player from each team
-                        team_a[1], team_b[1] = team_b[1], team_a[1]
-                        print(f"DEBUG: Applied gender balancing swap for court {court + 1}")
-                
-                # Apply rating balancing if requested (only within the same match)
-                if use_rating_balance:
-                    team_a_rating = sum(p.get('rating', 3.5) for p in team_a)
-                    team_b_rating = sum(p.get('rating', 3.5) for p in team_b)
-                    
-                    rating_diff = abs(team_a_rating - team_b_rating)
-                    if rating_diff > 1.0:  # Threshold for rebalancing
-                        # Try swapping players within this match to balance
-                        best_diff = rating_diff
-                        best_swap = None
-                        
-                        for i in range(2):
-                            for j in range(2):
-                                # Create temporary teams for testing
-                                temp_team_a = team_a.copy()
-                                temp_team_b = team_b.copy()
-                                temp_team_a[i], temp_team_b[j] = temp_team_b[j], temp_team_a[i]
-                                
-                                new_a_rating = sum(p.get('rating', 3.5) for p in temp_team_a)
-                                new_b_rating = sum(p.get('rating', 3.5) for p in temp_team_b)
-                                new_diff = abs(new_a_rating - new_b_rating)
-                                
-                                if new_diff < best_diff:
-                                    best_diff = new_diff
-                                    best_swap = (i, j)
-                        
-                        if best_swap:
-                            i, j = best_swap
-                            team_a[i], team_b[j] = team_b[j], team_a[i]
-                            print(f"DEBUG: Applied rating balancing swap for court {court + 1}")
-                
-                matches.append([team_a, team_b])
+            if matches is None:
+                print(f"DEBUG: Attempt {attempt + 1} failed - could not assign players safely")
+                continue
             
             # Validate the assignments
             is_valid, duplicates = self.validate_round_assignments(matches)
@@ -212,8 +261,7 @@ class TournamentGenerator:
                     "sit_outs": sit_outs
                 }
             else:
-                print(f"DEBUG: Attempt {attempt + 1} failed - found duplicates: {duplicates}")
-                # Continue to next attempt
+                print(f"DEBUG: Attempt {attempt + 1} failed validation - found duplicates: {list(duplicates.keys())}")
                 continue
         
         # If we get here, all attempts failed
@@ -221,9 +269,7 @@ class TournamentGenerator:
         return {"error": f"Failed to generate valid player assignments after {max_attempts} attempts"}
 
     def generate_simple_tournament(self, courts, players_list, rounds):
-        """
-        Generate complete tournament schedule
-        """
+        """Generate complete tournament schedule"""
         print(f"DEBUG: Generating tournament with {len(players_list)} players, {courts} courts, {rounds} rounds")
         
         # Validate input
@@ -482,7 +528,7 @@ def apply_player_switches():
         # After applying switches, validate the round
         is_valid, duplicates = tournament_gen.validate_round_assignments(current_matches)
         if not is_valid:
-            return jsonify({"error": f"Player switches would create duplicate assignments: {list(duplicates)}"}), 400
+            return jsonify({"error": f"Player switches would create duplicate assignments: {list(duplicates.keys())}"}), 400
         
         if switches_applied == 0:
             return jsonify({"error": "No switches were applied. Check player names match exactly."}), 400
@@ -612,7 +658,7 @@ def advance_round():
             # Validate after applying switches
             is_valid, duplicates = tournament_gen.validate_round_assignments(current_matches)
             if not is_valid:
-                return jsonify({"error": f"Round advancement failed: duplicate player assignments {list(duplicates)}"}), 400
+                return jsonify({"error": f"Round advancement failed: duplicate player assignments {list(duplicates.keys())}"}), 400
         
         # Update session
         session['tournament'] = tournament
