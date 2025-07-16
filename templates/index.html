@@ -3,51 +3,422 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DiNKR Pickleball Tournament</title>
+    <title>DiNKR Pickleball Americano Tournament</title>
+    <!-- Try jsdelivr CDN instead of unpkg -->
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
-            font-family: Arial, sans-serif; 
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; 
             background: #325682; 
-            color: white; 
-            padding: 20px; 
-            text-align: center; 
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            touch-action: manipulation;
+            padding-bottom: 60px; /* Extra space for mobile scrolling */
         }
-        h1 { color: #deff01; }
-        .error { color: #ff6b6b; background: rgba(255,255,255,0.1); padding: 20px; margin: 20px; border-radius: 8px; }
+        .btn { 
+            border: none; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+            touch-action: manipulation;
+        }
+        .btn:hover { transform: translateY(-1px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .input { 
+            border: 2px solid #64748b; 
+            border-radius: 4px; 
+            padding: 12px; 
+            font-size: 16px; 
+            outline: none;
+            touch-action: manipulation;
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
+        }
+        .input:focus { border-color: #deff01; }
+        .input::-webkit-outer-spin-button,
+        .input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .card { 
+            background: rgba(255, 255, 255, 0.1); 
+            backdrop-filter: blur(10px); 
+            border-radius: 12px; 
+            padding: 20px; 
+            margin: 16px auto;
+            width: 100%;
+        }
+        .error-message {
+            background: #fed7d7;
+            color: #9b2c2c;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        .success-message {
+            background: #c6f6d5;
+            color: #276749;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #deff01;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Clickable player styles */
+        .clickable-player {
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .clickable-player:hover {
+            background-color: #4a6fa5 !important;
+            transform: scale(1.02);
+        }
+        .clickable-player.selected {
+            background-color: #deff01 !important;
+            color: #1a202c !important;
+        }
+        
+        /* Player replacement dropdown */
+        .player-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #325682;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        .player-option {
+            padding: 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #e2e8f0;
+            color: #1a202c;
+            transition: background-color 0.2s;
+        }
+        
+        .player-option:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .player-option.unavailable {
+            background-color: #fee;
+            color: #999;
+            cursor: not-allowed;
+        }
+        
+        /* Number input with controls */
+        .number-input-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .number-input-btn {
+            background: #deff01;
+            color: #1a202c;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .number-input-btn:hover {
+            background: #c5d601;
+            transform: translateY(-1px);
+        }
+        
+        .number-input-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* DiNKR Logo Styling */
+        .dinkr-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .dinkr-tagline {
+            font-size: 12px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        /* Ensure smooth scrolling on mobile */
+        html { scroll-behavior: smooth; }
+        
+        /* Main container centering */
+        .container {
+            max-width: 400px; /* Optimized for mobile */
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .wide-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Court styling improvements */
+        .court-container {
+            background: #f7fafc;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            display: grid;
+            grid-template-columns: 2fr 1fr 4px 1fr 2fr;
+            border: 4px solid white;
+            border-radius: 4px;
+        }
+        
+        .court-team {
+            display: grid;
+            grid-template-rows: 1fr 1fr;
+        }
+        
+        .court-team.left {
+            border-right: 4px solid white;
+        }
+        
+        .court-team.right {
+            border-left: 4px solid white;
+        }
+        
+        .court-player {
+            background-color: #325682;
+            color: white;
+            text-align: center;
+            padding: 24px 16px;
+            fontSize: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .court-player.top {
+            border-bottom: 4px solid white;
+        }
+        
+        .court-score-input {
+            width: 52px;
+            height: 52px;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            border: none;
+            background-color: white;
+            outline: none;
+            border-radius: 4px;
+            touch-action: manipulation;
+        }
+        
+        .court-score-input:disabled {
+            background-color: #f3f4f6;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        /* Prevent zoom on double-tap for inputs */
+        input[type="tel"], input[type="text"], input[type="number"], select {
+            font-size: 16px;
+            transform: translateZ(0);
+        }
+
+        /* Loading indicator */
+        .loading-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            z-index: 9999;
+        }
     </style>
 </head>
 <body>
-    <h1>DiNKR Tournament System</h1>
-    <p>Loading React application...</p>
-    <div id="root"></div>
-    <div id="error-message" class="error" style="display: none;">
-        <h2>Loading Error</h2>
-        <p>The React application failed to load. This is likely due to CDN issues.</p>
+    <div id="loading" class="loading-indicator">
+        <div>Loading DiNKR Tournament System...</div>
+        <div class="spinner"></div>
     </div>
-    
-    <!-- Test if React CDN loads -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <div id="root"></div>
     
     <script>
-        // Test if React loaded
+        // Hide loading indicator function
+        function hideLoading() {
+            const loading = document.getElementById('loading');
+            if (loading) loading.style.display = 'none';
+        }
+
+        // Show error function
+        function showError(message) {
+            hideLoading();
+            document.getElementById('root').innerHTML = `
+                <div style="padding: 20px; text-align: center; color: white;">
+                    <h1 style="color: #deff01;">DiNKR Tournament System</h1>
+                    <div style="background: rgba(255,0,0,0.2); padding: 20px; margin: 20px; border-radius: 8px; border: 2px solid #ff6b6b;">
+                        <h2>Loading Error</h2>
+                        <p>${message}</p>
+                        <p style="font-size: 12px; margin-top: 10px;">Please refresh the page or contact support.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Check if React loaded properly
         setTimeout(() => {
-            if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
-                document.getElementById('error-message').style.display = 'block';
-                document.querySelector('p').textContent = 'React CDN failed to load!';
-            } else {
-                // React loaded, try to render a simple component
-                const { createElement: h } = React;
+            if (typeof React === 'undefined') {
+                showError('React library failed to load from CDN. This might be due to network restrictions.');
+                return;
+            }
+            
+            if (typeof ReactDOM === 'undefined') {
+                showError('ReactDOM library failed to load from CDN. This might be due to network restrictions.');
+                return;
+            }
+
+            try {
+                // Your full React app code goes here
+                const { useState, useCallback, useEffect, createElement: h } = React;
                 
-                const TestApp = () => {
-                    return h('div', { style: { padding: '20px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', margin: '20px' } }, [
-                        h('h2', { key: 'title', style: { color: '#deff01' } }, 'React is Working!'),
-                        h('p', { key: 'message' }, 'The React libraries loaded successfully.'),
-                        h('p', { key: 'next' }, 'Next step: Load the full tournament application.')
+                // DiNKR Logo Component
+                const DiNKRLogo = ({ size = 'normal' }) => {
+                    const logoSize = size === 'large' ? 80 : 60;
+                    const textSize = size === 'large' ? '36px' : '28px';
+                    
+                    return h('div', { 
+                        style: { textAlign: 'center', marginBottom: '24px' } 
+                    }, [
+                        h('div', { 
+                            key: 'logo',
+                            className: 'dinkr-logo' 
+                        }, [
+                            h('div', { 
+                                key: 'icon',
+                                style: {
+                                    width: logoSize + 'px',
+                                    height: logoSize + 'px',
+                                    background: '#deff01',
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: Math.round(logoSize * 0.5) + 'px'
+                                }
+                            }, '🏓'),
+                            h('div', { key: 'text' }, [
+                                h('div', { 
+                                    key: 'title',
+                                    style: {
+                                        fontSize: textSize,
+                                        fontWeight: 'bold',
+                                        color: '#deff01',
+                                        letterSpacing: '2px'
+                                    }
+                                }, 'DiNKR'),
+                                h('div', { 
+                                    key: 'tagline',
+                                    className: 'dinkr-tagline' 
+                                }, 'MEET YOUR MATCH')
+                            ])
+                        ])
                     ]);
                 };
-                
+
+                // Simple test component to verify React is working
+                const TestApp = () => {
+                    const [message, setMessage] = useState('React is working!');
+                    
+                    return h('div', { 
+                        style: { 
+                            minHeight: '100vh', 
+                            background: '#325682', 
+                            color: 'white',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '24px'
+                        } 
+                    }, [
+                        h(DiNKRLogo, { key: 'logo', size: 'large' }),
+                        h('div', { 
+                            key: 'message',
+                            className: 'card',
+                            style: { textAlign: 'center', maxWidth: '500px' }
+                        }, [
+                            h('h2', { 
+                                key: 'title',
+                                style: { fontSize: '24px', fontWeight: 'bold', color: '#deff01', marginBottom: '16px' } 
+                            }, 'System Status'),
+                            h('p', { 
+                                key: 'status',
+                                style: { fontSize: '18px', marginBottom: '20px' } 
+                            }, message),
+                            h('p', { 
+                                key: 'details',
+                                style: { fontSize: '14px', color: '#94a3b8' } 
+                            }, 'React libraries loaded successfully from jsdelivr CDN!'),
+                            h('button', {
+                                key: 'button',
+                                onClick: () => setMessage('Button clicked! React interactivity works!'),
+                                style: {
+                                    backgroundColor: '#deff01',
+                                    color: '#1a202c',
+                                    border: 'none',
+                                    padding: '12px 24px',
+                                    borderRadius: '8px',
+                                    fontSize: '16px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    marginTop: '20px'
+                                }
+                            }, 'Test Interactivity')
+                        ])
+                    ]);
+                };
+
+                // Render the test app
+                hideLoading();
                 ReactDOM.render(React.createElement(TestApp), document.getElementById('root'));
+                
+            } catch (error) {
+                showError(`JavaScript error: ${error.message}`);
             }
         }, 1000);
     </script>
