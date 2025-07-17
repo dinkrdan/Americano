@@ -762,6 +762,194 @@
                 ]);
             };
 
+            // Player Management Dialog
+            const PlayerDialog = ({ isOpen, onClose, players, setPlayers, totalPlayers }) => {
+                const [editingPlayers, setEditingPlayers] = useState([]);
+
+                useEffect(() => {
+                    if (isOpen) {
+                        // Initialize with current players or create new ones
+                        const initialPlayers = [];
+                        for (let i = 0; i < totalPlayers; i++) {
+                            if (players[i]) {
+                                initialPlayers.push(players[i]);
+                            } else {
+                                initialPlayers.push({
+                                    firstName: '',
+                                    lastName: '',
+                                    gender: 'M',
+                                    rating: 3.5
+                                });
+                            }
+                        }
+                        setEditingPlayers(initialPlayers);
+                    }
+                }, [isOpen, players, totalPlayers]);
+
+                const updatePlayer = (index, field, value) => {
+                    setEditingPlayers(prev => {
+                        const updated = [...prev];
+                        updated[index] = { ...updated[index], [field]: value };
+                        return updated;
+                    });
+                };
+
+                const handleSave = () => {
+                    // Validate all players have first names
+                    const allValid = editingPlayers.every(p => p.firstName.trim());
+                    if (!allValid) {
+                        alert('Please fill in all first names');
+                        return;
+                    }
+                    
+                    setPlayers(editingPlayers);
+                    onClose();
+                };
+
+                const randomizeRatings = () => {
+                    setEditingPlayers(prev => prev.map(p => ({
+                        ...p,
+                        rating: Math.round((Math.random() * 1.5 + 3.0) * 10) / 10
+                    })));
+                };
+
+                if (!isOpen) return null;
+
+                return createEl('div', { className: 'dialog-overlay' }, [
+                    createEl('div', { 
+                        key: 'content',
+                        className: 'dialog-content',
+                        style: { maxWidth: '600px' }
+                    }, [
+                        createEl('div', { 
+                            key: 'header',
+                            style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }
+                        }, [
+                            createEl('h2', { 
+                                key: 'title',
+                                style: { fontSize: '24px', fontWeight: 'bold', color: '#325682' } 
+                            }, 'Configure Players'),
+                            createEl('button', {
+                                key: 'randomize',
+                                onClick: randomizeRatings,
+                                className: 'btn',
+                                style: {
+                                    backgroundColor: '#deff01',
+                                    color: '#1a202c',
+                                    padding: '8px 16px',
+                                    borderRadius: '6px',
+                                    fontSize: '14px'
+                                }
+                            }, 'Randomize Ratings')
+                        ]),
+                        
+                        createEl('div', { 
+                            key: 'players',
+                            style: { marginBottom: '24px', maxHeight: '400px', overflowY: 'auto' }
+                        }, editingPlayers.map((player, index) => 
+                            createEl('div', {
+                                key: index,
+                                style: {
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr 80px 80px',
+                                    gap: '12px',
+                                    marginBottom: '12px',
+                                    padding: '12px',
+                                    backgroundColor: '#f8f9fa',
+                                    borderRadius: '8px'
+                                }
+                            }, [
+                                createEl('input', {
+                                    key: 'firstName',
+                                    type: 'text',
+                                    placeholder: 'First Name',
+                                    value: player.firstName,
+                                    onChange: (e) => updatePlayer(index, 'firstName', e.target.value),
+                                    style: {
+                                        padding: '8px 12px',
+                                        border: '2px solid #e2e8f0',
+                                        borderRadius: '6px',
+                                        fontSize: '14px'
+                                    }
+                                }),
+                                createEl('input', {
+                                    key: 'lastName',
+                                    type: 'text',
+                                    placeholder: 'Last Name',
+                                    value: player.lastName,
+                                    onChange: (e) => updatePlayer(index, 'lastName', e.target.value),
+                                    style: {
+                                        padding: '8px 12px',
+                                        border: '2px solid #e2e8f0',
+                                        borderRadius: '6px',
+                                        fontSize: '14px'
+                                    }
+                                }),
+                                createEl('select', {
+                                    key: 'gender',
+                                    value: player.gender,
+                                    onChange: (e) => updatePlayer(index, 'gender', e.target.value),
+                                    style: {
+                                        padding: '8px 12px',
+                                        border: '2px solid #e2e8f0',
+                                        borderRadius: '6px',
+                                        fontSize: '14px'
+                                    }
+                                }, [
+                                    createEl('option', { key: 'M', value: 'M' }, 'Male'),
+                                    createEl('option', { key: 'F', value: 'F' }, 'Female')
+                                ]),
+                                createEl('input', {
+                                    key: 'rating',
+                                    type: 'number',
+                                    min: 2.0,
+                                    max: 5.0,
+                                    step: 0.1,
+                                    value: player.rating,
+                                    onChange: (e) => updatePlayer(index, 'rating', parseFloat(e.target.value) || 3.5),
+                                    style: {
+                                        padding: '8px 12px',
+                                        border: '2px solid #e2e8f0',
+                                        borderRadius: '6px',
+                                        fontSize: '14px'
+                                    }
+                                })
+                            ])
+                        )),
+                        
+                        createEl('div', { 
+                            key: 'buttons',
+                            style: { display: 'flex', gap: '12px', justifyContent: 'flex-end' }
+                        }, [
+                            createEl('button', {
+                                key: 'cancel',
+                                onClick: onClose,
+                                className: 'btn',
+                                style: {
+                                    backgroundColor: '#64748b',
+                                    color: 'white',
+                                    padding: '12px 24px',
+                                    borderRadius: '8px',
+                                    fontSize: '16px'
+                                }
+                            }, 'Cancel'),
+                            createEl('button', {
+                                key: 'save',
+                                onClick: handleSave,
+                                className: 'btn',
+                                style: {
+                                    backgroundColor: '#deff01',
+                                    color: '#1a202c',
+                                    padding: '12px 24px',
+                                    borderRadius: '8px',
+                                    fontSize: '16px'
+                                }
+                            }, 'Save Players')
+                        ])
+                    ])
+                ]);
+            };
+
             // Player Switch Dialog
             const PlayerSwitchDialog = ({ isOpen, onClose, tournament, currentRound, onSwitchesConfirmed }) => {
                 const [switches, setSwitches] = useState([]);
@@ -1105,6 +1293,8 @@
                     useRatingBalance: true, 
                     roundDuration: 13
                 });
+                const [players, setPlayers] = useState([]);
+                const [showPlayerDialog, setShowPlayerDialog] = useState(false);
                 const [tournament, setTournament] = useState(null);
                 const [currentRound, setCurrentRound] = useState(0);
                 const [scores, setScores] = useState({});
@@ -1160,9 +1350,22 @@
                     setErrorMessage('');
                     
                     try {
+                        // Prepare players data
+                        let playersToSend = [];
+                        if (!config.useDefaults) {
+                            // Convert custom players to format expected by backend
+                            playersToSend = players.map(p => ({
+                                name: `${p.firstName} ${p.lastName}`.trim(),
+                                firstName: p.firstName,
+                                lastName: p.lastName,
+                                gender: p.gender,
+                                rating: p.rating
+                            }));
+                        }
+
                         const requestData = {
                             courts: config.courts,
-                            players: [],
+                            players: playersToSend,
                             rounds: config.rounds,
                             useDefaults: config.useDefaults,
                             avoidMMvsFF: config.avoidMMvsFF,
@@ -1540,7 +1743,7 @@
                             
                             createEl('button', { 
                                 key: 'next', 
-                                onClick: generateTournament, 
+                                onClick: () => setStep(2), 
                                 disabled: loading, 
                                 className: 'btn', 
                                 style: { 
@@ -1552,7 +1755,130 @@
                                     fontWeight: 'bold',
                                     borderRadius: '12px'
                                 } 
-                            }, loading ? 'Generating Tournament...' : 'Generate Tournament')
+                            }, 'Next: Configure Players')
+                        ])
+                    ]);
+                }
+
+                // Step 2: Player Configuration
+                if (step === 2) {
+                    return createEl('div', { 
+                        style: { 
+                            minHeight: '100vh', 
+                            background: '#325682', 
+                            color: 'white', 
+                            padding: '20px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center'
+                        } 
+                    }, [
+                        createEl('div', { key: 'container', className: 'container' }, [
+                            createEl('div', { 
+                                key: 'header', 
+                                style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' } 
+                            }, [
+                                createEl('button', { 
+                                    key: 'back', 
+                                    onClick: () => setStep(1), 
+                                    className: 'header-back'
+                                }, createEl(ChevronLeft)),
+                                createEl('h2', { 
+                                    key: 'title', 
+                                    style: { fontSize: '24px', fontWeight: 'bold', color: '#deff01' } 
+                                }, 'Player Configuration'),
+                                createEl('div', { key: 'spacer', style: { width: '40px' } })
+                            ]),
+                            
+                            errorMessage ? createEl('div', { key: 'error', className: 'error-message' }, errorMessage) : null,
+                            successMessage ? createEl('div', { key: 'success', className: 'success-message' }, successMessage) : null,
+                            
+                            createEl('div', { key: 'player-options', className: 'card' }, [
+                                createEl('h3', { 
+                                    key: 'title', 
+                                    style: { marginBottom: '20px', color: '#deff01', fontSize: '20px', textAlign: 'center' } 
+                                }, 'Player Setup'),
+                                createEl('div', { 
+                                    key: 'options',
+                                    style: { display: 'flex', flexDirection: 'column', gap: '16px' }
+                                }, [
+                                    createEl('label', { 
+                                        key: 'defaults', 
+                                        style: { display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' } 
+                                    }, [
+                                        createEl('input', { 
+                                            type: 'radio', 
+                                            name: 'playerType',
+                                            checked: config.useDefaults, 
+                                            onChange: () => setConfig(prev => ({...prev, useDefaults: true})), 
+                                            style: { width: '20px', height: '20px' } 
+                                        }),
+                                        createEl('span', { style: { fontSize: '16px' } }, 'Use default players with balanced ratings')
+                                    ]),
+                                    createEl('label', { 
+                                        key: 'custom', 
+                                        style: { display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' } 
+                                    }, [
+                                        createEl('input', { 
+                                            type: 'radio', 
+                                            name: 'playerType',
+                                            checked: !config.useDefaults, 
+                                            onChange: () => setConfig(prev => ({...prev, useDefaults: false})), 
+                                            style: { width: '20px', height: '20px' } 
+                                        }),
+                                        createEl('span', { style: { fontSize: '16px' } }, 'Add custom players')
+                                    ])
+                                ]),
+                                
+                                !config.useDefaults ? createEl('div', { 
+                                    key: 'custom-controls',
+                                    style: { marginTop: '20px', textAlign: 'center' }
+                                }, [
+                                    createEl('button', {
+                                        key: 'configure',
+                                        onClick: () => setShowPlayerDialog(true),
+                                        className: 'btn',
+                                        style: {
+                                            backgroundColor: '#deff01',
+                                            color: '#1a202c',
+                                            padding: '12px 24px',
+                                            borderRadius: '8px',
+                                            fontSize: '16px'
+                                        }
+                                    }, `Configure ${config.totalPlayers} Players`)
+                                ]) : createEl('div', { 
+                                    key: 'default-info',
+                                    style: { marginTop: '20px', fontSize: '14px', color: '#94a3b8', textAlign: 'center' }
+                                }, `The system will automatically generate ${config.totalPlayers} players with balanced ratings and mixed genders.`)
+                            ]),
+                            
+                            loading ? createEl('div', { key: 'loading', className: 'spinner' }) : null,
+                            
+                            createEl('button', { 
+                                key: 'generate', 
+                                onClick: generateTournament, 
+                                disabled: loading || (!config.useDefaults && players.length !== config.totalPlayers),
+                                className: 'btn', 
+                                style: { 
+                                    width: '100%', 
+                                    backgroundColor: (loading || (!config.useDefaults && players.length !== config.totalPlayers)) ? '#64748b' : '#deff01', 
+                                    color: '#1e293b', 
+                                    padding: '18px', 
+                                    fontSize: '18px',
+                                    fontWeight: 'bold',
+                                    borderRadius: '12px'
+                                } 
+                            }, loading ? 'Generating Tournament...' : 'Generate Tournament'),
+
+                            // Player Dialog
+                            createEl(PlayerDialog, {
+                                key: 'player-dialog',
+                                isOpen: showPlayerDialog,
+                                onClose: () => setShowPlayerDialog(false),
+                                players,
+                                setPlayers,
+                                totalPlayers: config.totalPlayers
+                            })
                         ])
                     ]);
                 }
