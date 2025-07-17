@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>DiNKR Pickleball Americano Tournament</title>
-    <!-- Alternative CDN sources for better reliability -->
+    <!-- Reliable CDN sources for React -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <style>
@@ -35,7 +35,11 @@
             touch-action: manipulation;
             -webkit-appearance: none;
             user-select: none;
-            min-height: 44px; /* iOS minimum touch target */
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
         .btn:hover, .btn:active { 
             transform: translateY(-1px); 
@@ -52,7 +56,7 @@
             border: 2px solid #64748b; 
             border-radius: 4px; 
             padding: 12px; 
-            font-size: 16px; /* Prevents zoom on iOS */
+            font-size: 16px;
             outline: none;
             touch-action: manipulation;
             -webkit-appearance: none;
@@ -115,11 +119,6 @@
             margin: 0 auto;
             padding: 20px;
         }
-        .wide-container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
         
         /* Court styling - mobile optimized */
         .court-wrapper {
@@ -132,7 +131,7 @@
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             display: grid;
             grid-template-columns: 2fr 1fr 4px 1fr 2fr;
-            border: 4px solid white;
+            border: 2px solid white;
             border-radius: 0px;
             width: 100%;
             max-width: 380px;
@@ -143,10 +142,10 @@
             grid-template-rows: 1fr 1fr;
         }
         .court-team.left {
-            border-right: 4px solid white;
+            border-right: 2px solid white;
         }
         .court-team.right {
-            border-left: 4px solid white;
+            border-left: 2px solid white;
         }
         .court-player {
             background-color: #325682;
@@ -158,17 +157,21 @@
             align-items: center;
             justify-content: center;
             min-height: 60px;
+            transition: all 0.2s;
         }
         .court-player.top {
-            border-bottom: 4px solid white;
+            border-bottom: 2px solid white;
         }
         .court-player.clickable {
             cursor: pointer;
-            transition: all 0.2s;
         }
         .court-player.clickable:hover {
             background-color: #4a6fa5;
             transform: scale(1.02);
+        }
+        .court-player.selected {
+            background-color: #deff01;
+            color: #1a202c;
         }
         .court-score-input {
             width: 52px;
@@ -179,7 +182,7 @@
             border: none;
             background-color: white;
             outline: none;
-            border-radius: 4px;
+            border-radius: 0px;
             touch-action: manipulation;
             -webkit-appearance: none;
         }
@@ -272,6 +275,92 @@
             overflow-y: auto;
             color: #1a202c;
             width: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Player grid for dialogs */
+        .player-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin: 20px 0;
+        }
+        .player-button {
+            padding: 12px 8px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #1a202c;
+            transition: all 0.2s;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .player-button.selected {
+            border-color: #325682;
+            background-color: #deff01;
+            color: #1a202c;
+        }
+        .player-button:disabled {
+            background-color: #f8f9fa;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        /* Match display in dialogs */
+        .match-display {
+            border: 2px solid #325682;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            background-color: #f8f9fa;
+        }
+        .team-display {
+            text-align: center;
+            margin: 8px 0;
+        }
+        .team-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+        .player-chip {
+            padding: 8px 12px;
+            margin: 4px;
+            background-color: #325682;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-block;
+            transition: all 0.2s;
+        }
+        .player-chip:hover {
+            background-color: #4a6fa5;
+            transform: scale(1.02);
+        }
+        
+        /* Results styling */
+        .results-grid {
+            display: grid;
+            gap: 8px;
+            margin: 16px 0;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-radius: 6px;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .result-item.winner {
+            background-color: rgba(222, 255, 1, 0.1);
+            border: 1px solid #deff01;
         }
         
         /* Prevent zoom on inputs */
@@ -317,6 +406,42 @@
             letter-spacing: 1px;
             margin-top: 4px;
         }
+        
+        /* Header styles */
+        .header {
+            background-color: #1a202c;
+            color: white;
+            padding: 12px 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header-back {
+            padding: 8px;
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 20px;
+            min-width: 40px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .header-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #deff01;
+        }
+        .header-spacer {
+            width: 40px;
+        }
     </style>
 </head>
 <body>
@@ -339,28 +464,27 @@
             document.getElementById('root').innerHTML = `
                 <div style="padding: 20px; text-align: center; background: #325682; color: white; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                     <h2 style="color: #dc2626; margin-bottom: 20px;">⚠️ Loading Error</h2>
-                    <p style="margin-bottom: 20px;">There was an issue loading the React components.</p>
+                    <p style="margin-bottom: 20px;">React components failed to load.</p>
                     <p style="font-size: 14px; color: #94a3b8;">Error: ${e.error ? e.error.message : 'Unknown error'}</p>
-                    <button onclick="window.location.reload()" style="background: #deff01; color: #1a202c; border: none; padding: 12px 24px; border-radius: 8px; margin-top: 20px; cursor: pointer;">Reload Page</button>
+                    <button onclick="window.location.reload()" style="background: #deff01; color: #1a202c; border: none; padding: 12px 24px; border-radius: 8px; margin-top: 20px; cursor: pointer; font-weight: bold;">Reload Page</button>
                 </div>
             `;
         });
 
         // Check if React loaded
         if (typeof React === 'undefined') {
-            console.error('React failed to load');
             document.getElementById('root').innerHTML = `
                 <div style="padding: 20px; text-align: center; background: #325682; color: white; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                     <h2 style="color: #dc2626; margin-bottom: 20px;">React Loading Failed</h2>
-                    <p style="margin-bottom: 20px;">Unable to load React from CDN. Please check your internet connection.</p>
-                    <button onclick="window.location.reload()" style="background: #deff01; color: #1a202c; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer;">Retry</button>
+                    <p style="margin-bottom: 20px;">CDN connection issue. Check internet.</p>
+                    <button onclick="window.location.reload()" style="background: #deff01; color: #1a202c; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold;">Retry</button>
                 </div>
             `;
         } else {
             // React loaded successfully, initialize app
             const { useState, useCallback, useEffect, createElement: h } = React;
             
-            // Utility function for creating elements with better error handling
+            // Utility function for creating elements
             const createEl = (type, props = {}, ...children) => {
                 try {
                     return h(type, props, ...children);
@@ -369,6 +493,11 @@
                     return h('div', { style: { color: 'red' } }, 'Component Error');
                 }
             };
+            
+            // Icon Components
+            const ChevronLeft = () => createEl('span', { style: { fontSize: '20px' } }, '←');
+            const CheckCircle = () => createEl('span', { style: { fontSize: '18px' } }, '✓');
+            const Trophy = () => createEl('span', { style: { fontSize: '40px' } }, '🏆');
             
             // Logo Component
             const DiNKRLogo = ({ size = 'normal' }) => {
@@ -490,7 +619,7 @@
                         }, `${teamAScore} - ${teamBScore}`),
                         createEl('div', { 
                             key: 'buttons',
-                            style: { display: 'flex', gap: '16px', justifyContent: 'center' }
+                            style: { display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }
                         }, [
                             createEl('button', {
                                 key: 'edit',
@@ -516,6 +645,327 @@
                                     fontSize: '16px'
                                 }
                             }, 'Confirm Score')
+                        ])
+                    ])
+                ]);
+            };
+
+            // Skip Player Dialog
+            const SkipPlayerDialog = ({ isOpen, onClose, tournament, onSkipPlayersSelected, maxSkips }) => {
+                const [selectedPlayers, setSelectedPlayers] = useState(new Set());
+
+                useEffect(() => {
+                    if (isOpen) {
+                        setSelectedPlayers(new Set());
+                    }
+                }, [isOpen]);
+
+                if (!isOpen || !tournament) return null;
+
+                const togglePlayer = (playerName) => {
+                    setSelectedPlayers(prev => {
+                        const newSet = new Set(prev);
+                        if (newSet.has(playerName)) {
+                            newSet.delete(playerName);
+                        } else if (newSet.size < maxSkips) {
+                            newSet.add(playerName);
+                        }
+                        return newSet;
+                    });
+                };
+
+                const handleNoSkips = () => {
+                    onSkipPlayersSelected([]);
+                    onClose();
+                };
+
+                const handleConfirmSkips = () => {
+                    onSkipPlayersSelected(Array.from(selectedPlayers));
+                    onClose();
+                };
+
+                return createEl('div', { className: 'dialog-overlay' }, [
+                    createEl('div', { 
+                        key: 'content',
+                        className: 'dialog-content',
+                        style: { maxWidth: '500px', textAlign: 'center' }
+                    }, [
+                        createEl('h2', { 
+                            key: 'title',
+                            style: { fontSize: '24px', fontWeight: 'bold', marginBottom: '16px', color: '#325682' } 
+                        }, 'Next Round Setup'),
+                        createEl('p', { 
+                            key: 'question',
+                            style: { marginBottom: '24px', fontSize: '18px' } 
+                        }, 'Do any players need to skip the next round?'),
+                        createEl('div', { 
+                            key: 'instructions',
+                            style: { marginBottom: '20px', fontSize: '14px', color: '#64748b' }
+                        }, `Select up to ${maxSkips} player${maxSkips !== 1 ? 's' : ''} to skip:`),
+                        createEl('div', { 
+                            key: 'players',
+                            className: 'player-grid'
+                        }, tournament.players.map(player => {
+                            const playerName = player.name || player.firstName;
+                            const isSelected = selectedPlayers.has(playerName);
+                            const canSelect = selectedPlayers.size < maxSkips || isSelected;
+                            
+                            return createEl('button', {
+                                key: playerName,
+                                onClick: () => togglePlayer(playerName),
+                                disabled: !canSelect,
+                                className: `player-button ${isSelected ? 'selected' : ''}`,
+                                style: {
+                                    border: `2px solid ${isSelected ? '#325682' : '#e2e8f0'}`,
+                                    backgroundColor: isSelected ? '#deff01' : (canSelect ? 'white' : '#f8f9fa'),
+                                    color: isSelected ? '#1a202c' : (canSelect ? '#1a202c' : '#9ca3af'),
+                                    cursor: canSelect ? 'pointer' : 'not-allowed'
+                                }
+                            }, playerName);
+                        })),
+                        selectedPlayers.size > 0 ? createEl('p', {
+                            key: 'selected-count',
+                            style: { fontSize: '14px', color: '#325682', marginBottom: '20px' }
+                        }, `${selectedPlayers.size} player${selectedPlayers.size !== 1 ? 's' : ''} selected to skip`) : null,
+                        createEl('div', { 
+                            key: 'buttons',
+                            style: { display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }
+                        }, [
+                            createEl('button', {
+                                key: 'no-skips',
+                                onClick: handleNoSkips,
+                                className: 'btn',
+                                style: {
+                                    backgroundColor: '#64748b',
+                                    color: 'white',
+                                    padding: '16px 24px',
+                                    borderRadius: '8px',
+                                    fontSize: '16px'
+                                }
+                            }, 'No Skips'),
+                            createEl('button', {
+                                key: 'confirm',
+                                onClick: handleConfirmSkips,
+                                disabled: selectedPlayers.size === 0,
+                                className: 'btn',
+                                style: {
+                                    backgroundColor: selectedPlayers.size > 0 ? '#deff01' : '#9ca3af',
+                                    color: '#1a202c',
+                                    padding: '16px 24px',
+                                    borderRadius: '8px',
+                                    fontSize: '16px',
+                                    cursor: selectedPlayers.size > 0 ? 'pointer' : 'not-allowed'
+                                }
+                            }, 'Confirm Skips')
+                        ])
+                    ])
+                ]);
+            };
+
+            // Player Switch Dialog
+            const PlayerSwitchDialog = ({ isOpen, onClose, tournament, currentRound, onSwitchesConfirmed }) => {
+                const [switches, setSwitches] = useState([]);
+
+                useEffect(() => {
+                    if (isOpen) {
+                        setSwitches([]);
+                    }
+                }, [isOpen]);
+
+                if (!isOpen || !tournament) return null;
+
+                const currentMatches = tournament.schedule[currentRound]?.matches || [];
+                const allPlayers = tournament.players;
+
+                const addSwitch = (oldPlayer, newPlayer) => {
+                    setSwitches(prev => {
+                        const filtered = prev.filter(s => s.oldPlayer !== oldPlayer);
+                        return [...filtered, { oldPlayer, newPlayer }];
+                    });
+                };
+
+                const removeSwitch = (oldPlayer) => {
+                    setSwitches(prev => prev.filter(s => s.oldPlayer !== oldPlayer));
+                };
+
+                const handlePlayerClick = (player) => {
+                    const availablePlayerNames = allPlayers
+                        .map(p => p.name || `${p.firstName} ${p.lastName}`.trim())
+                        .filter(name => name !== player.name)
+                        .sort();
+                    
+                    const playerList = availablePlayerNames.join(', ');
+                    const newPlayerName = prompt(
+                        `Replace ${player.name} with:\n\nAvailable players: ${playerList}`, 
+                        ''
+                    );
+                    
+                    if (newPlayerName) {
+                        const foundPlayer = allPlayers.find(p => {
+                            const pName = p.name || `${p.firstName} ${p.lastName}`.trim();
+                            return pName.toLowerCase() === newPlayerName.toLowerCase();
+                        });
+                        
+                        if (foundPlayer) {
+                            const foundPlayerName = foundPlayer.name || `${foundPlayer.firstName} ${foundPlayer.lastName}`.trim();
+                            addSwitch(player.name, foundPlayerName);
+                        } else {
+                            alert(`Player "${newPlayerName}" not found. Please check spelling.`);
+                        }
+                    }
+                };
+
+                const handleConfirm = () => {
+                    onSwitchesConfirmed(switches);
+                    onClose();
+                };
+
+                return createEl('div', { className: 'dialog-overlay' }, [
+                    createEl('div', { 
+                        key: 'content',
+                        className: 'dialog-content',
+                        style: { maxWidth: '600px', textAlign: 'center' }
+                    }, [
+                        createEl('h2', { 
+                            key: 'title',
+                            style: { fontSize: '24px', fontWeight: 'bold', marginBottom: '16px', color: '#325682' } 
+                        }, 'Manual Player Assignments'),
+                        createEl('p', { 
+                            key: 'description',
+                            style: { marginBottom: '24px', fontSize: '16px', color: '#64748b' } 
+                        }, 'Click on any player name to replace them with a different player.'),
+                        
+                        // Show current matches with clickable players
+                        createEl('div', { 
+                            key: 'matches',
+                            style: { marginBottom: '24px' }
+                        }, currentMatches.map((match, matchIndex) => {
+                            const [teamA, teamB] = match;
+                            return createEl('div', {
+                                key: matchIndex,
+                                className: 'match-display'
+                            }, [
+                                createEl('h4', { 
+                                    key: 'court-title',
+                                    style: { marginBottom: '12px', color: '#325682' } 
+                                }, `Court ${matchIndex + 1}`),
+                                createEl('div', {
+                                    key: 'teams',
+                                    style: { display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap' }
+                                }, [
+                                    createEl('div', { key: 'teamA', className: 'team-display' }, [
+                                        createEl('div', { 
+                                            key: 'team-label',
+                                            className: 'team-label'
+                                        }, 'Team A'),
+                                        ...teamA.map((player, playerIndex) => 
+                                            createEl('div', {
+                                                key: `a-${playerIndex}`,
+                                                className: 'player-chip',
+                                                onClick: () => handlePlayerClick(player)
+                                            }, player.name)
+                                        )
+                                    ]),
+                                    createEl('div', { 
+                                        key: 'vs',
+                                        style: { 
+                                            fontSize: '18px', 
+                                            fontWeight: 'bold', 
+                                            color: '#325682',
+                                            margin: '0 16px'
+                                        } 
+                                    }, 'VS'),
+                                    createEl('div', { key: 'teamB', className: 'team-display' }, [
+                                        createEl('div', { 
+                                            key: 'team-label',
+                                            className: 'team-label'
+                                        }, 'Team B'),
+                                        ...teamB.map((player, playerIndex) => 
+                                            createEl('div', {
+                                                key: `b-${playerIndex}`,
+                                                className: 'player-chip',
+                                                onClick: () => handlePlayerClick(player)
+                                            }, player.name)
+                                        )
+                                    ])
+                                ])
+                            ]);
+                        })),
+                        
+                        // Show pending switches
+                        switches.length > 0 ? createEl('div', {
+                            key: 'pending-switches',
+                            style: {
+                                backgroundColor: '#f0f9ff',
+                                border: '2px solid #325682',
+                                borderRadius: '8px',
+                                padding: '16px',
+                                marginBottom: '24px'
+                            }
+                        }, [
+                            createEl('h4', { 
+                                key: 'switches-title',
+                                style: { marginBottom: '12px', color: '#325682' } 
+                            }, 'Pending Switches:'),
+                            ...switches.map((switchItem, index) => 
+                                createEl('div', {
+                                    key: index,
+                                    style: {
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        padding: '8px',
+                                        backgroundColor: 'white',
+                                        borderRadius: '4px',
+                                        marginBottom: '8px'
+                                    }
+                                }, [
+                                    createEl('span', { key: 'switch-text' }, `${switchItem.oldPlayer} → ${switchItem.newPlayer}`),
+                                    createEl('button', {
+                                        key: 'remove-switch',
+                                        onClick: () => removeSwitch(switchItem.oldPlayer),
+                                        style: {
+                                            background: '#dc2626',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            padding: '4px 8px',
+                                            cursor: 'pointer',
+                                            fontSize: '12px'
+                                        }
+                                    }, '✕')
+                                ])
+                            )
+                        ]) : null,
+                        
+                        createEl('div', { 
+                            key: 'buttons',
+                            style: { display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }
+                        }, [
+                            createEl('button', {
+                                key: 'no-changes',
+                                onClick: () => { setSwitches([]); handleConfirm(); },
+                                className: 'btn',
+                                style: {
+                                    backgroundColor: '#64748b',
+                                    color: 'white',
+                                    padding: '16px 24px',
+                                    borderRadius: '8px',
+                                    fontSize: '16px'
+                                }
+                            }, 'Keep Auto Assignments'),
+                            createEl('button', {
+                                key: 'confirm',
+                                onClick: handleConfirm,
+                                className: 'btn',
+                                style: {
+                                    backgroundColor: '#deff01',
+                                    color: '#1a202c',
+                                    padding: '16px 24px',
+                                    borderRadius: '8px',
+                                    fontSize: '16px'
+                                }
+                            }, switches.length > 0 ? `Apply ${switches.length} Switch${switches.length !== 1 ? 'es' : ''}` : 'Confirm Assignments')
                         ])
                     ])
                 ]);
@@ -665,6 +1115,9 @@
                 const [loading, setLoading] = useState(false);
                 const [errorMessage, setErrorMessage] = useState('');
                 const [successMessage, setSuccessMessage] = useState('');
+                const [showSkipDialog, setShowSkipDialog] = useState(false);
+                const [showSwitchDialog, setShowSwitchDialog] = useState(false);
+                const [pendingSkipPlayers, setPendingSkipPlayers] = useState([]);
                 
                 // Score validation state
                 const [scoreValidation, setScoreValidation] = useState({
@@ -803,6 +1256,152 @@
                     setTimeRemaining(config.roundDuration * 60);
                     setTimerRunning(true);
                     setPhase('playing');
+                };
+
+                const handleAdvanceRound = () => {
+                    if (currentRound < tournament.schedule.length - 1) {
+                        const totalPlayers = tournament.players.length;
+                        const playingPlayers = config.courts * 4;
+                        const maxSkips = totalPlayers - playingPlayers;
+                        
+                        if (maxSkips > 0) {
+                            setShowSkipDialog(true);
+                        } else {
+                            setShowSwitchDialog(true);
+                        }
+                    } else {
+                        setPhase('completed');
+                    }
+                };
+
+                const handleSkipPlayersSelected = (skipPlayers) => {
+                    setPendingSkipPlayers(skipPlayers);
+                    setShowSwitchDialog(true);
+                };
+
+                const handleSwitchesConfirmed = (switches) => {
+                    if (phase === 'setup') {
+                        applyRound1Switches(switches);
+                    } else {
+                        advanceRound(pendingSkipPlayers, switches);
+                    }
+                };
+
+                const applyRound1Switches = async (switches) => {
+                    try {
+                        if (switches.length > 0) {
+                            setLoading(true);
+                            
+                            const response = await fetch('/api/apply_player_switches', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ switches, roundIndex: 0 })
+                            });
+
+                            const result = await response.json();
+
+                            if (response.ok && result.success) {
+                                const stateResponse = await fetch('/api/get_tournament_state');
+                                const state = await stateResponse.json();
+                                
+                                if (state.tournament) {
+                                    setTournament(state.tournament);
+                                }
+                                
+                                showSuccess(`Applied ${switches.length} manual assignment(s) for Round 1`);
+                            } else {
+                                showError(result.error || 'Failed to apply switches');
+                            }
+                        }
+                        
+                        setPhase('playing');
+                        setRoundStarted(true);
+                        setTimeRemaining(config.roundDuration * 60);
+                        setTimerRunning(true);
+                    } catch (error) {
+                        showError('Network error: ' + error.message);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
+                const advanceRound = async (skipPlayers = [], playerSwitches = []) => {
+                    try {
+                        setLoading(true);
+                        
+                        const response = await fetch('/api/advance_round', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ skipPlayers, playerSwitches })
+                        });
+
+                        const result = await response.json();
+
+                        if (result.completed) {
+                            setPhase('completed');
+                        } else if (result.success) {
+                            const stateResponse = await fetch('/api/get_tournament_state');
+                            const state = await stateResponse.json();
+                            
+                            if (state.tournament) {
+                                setTournament(state.tournament);
+                                setCurrentRound(state.current_round);
+                                setScores(state.scores);
+                            }
+                            
+                            setRoundStarted(false);
+                            setTimerRunning(false);
+                            setTimeRemaining(0);
+                            setPhase('playing');
+                            
+                            let message = `Advanced to Round ${result.round + 1}`;
+                            if (skipPlayers.length > 0) {
+                                message += ` with ${skipPlayers.length} player(s) skipping`;
+                            }
+                            if (playerSwitches.length > 0) {
+                                message += ` and ${playerSwitches.length} manual assignment(s)`;
+                            }
+                            showSuccess(message);
+                        } else {
+                            showError(result.error || 'Failed to advance round');
+                        }
+                    } catch (error) {
+                        showError('Network error: ' + error.message);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
+                const calculateTournamentResults = async () => {
+                    try {
+                        const response = await fetch('/api/calculate_results');
+                        const results = await response.json();
+                        
+                        if (results.error) {
+                            showError('Failed to calculate results');
+                            return null;
+                        }
+                        
+                        return results.map(player => {
+                            const avgScore = player.matchesPlayed > 0 ? player.totalScore / player.matchesPlayed : 0;
+                            const winRate = player.matchesPlayed > 0 ? (player.wins / player.matchesPlayed) * 100 : 0;
+                            const expectedAvgScore = Math.max(6, Math.min(11, 5 + (player.rating - 3.0) * 2));
+                            const performanceIndex = avgScore / expectedAvgScore;
+                            
+                            return {
+                                ...player,
+                                avgScore: Math.round(avgScore * 10) / 10,
+                                winRate: Math.round(winRate),
+                                expectedAvgScore: Math.round(expectedAvgScore * 10) / 10,
+                                performanceIndex: Math.round(performanceIndex * 100) / 100,
+                                performanceLabel: performanceIndex > 1.1 ? 'Exceeded' : 
+                                                performanceIndex < 0.9 ? 'Below' : 'Met'
+                            };
+                        });
+                    } catch (error) {
+                        showError('Network error calculating results');
+                        return null;
+                    }
                 };
 
                 const formatTime = (seconds) => {
@@ -964,28 +1563,212 @@
                     const isCurrentRoundComplete = isRoundComplete(currentRound);
                     const isLastRound = currentRound >= tournament.schedule.length - 1;
 
+                    // Tournament Results
+                    if (phase === 'completed') {
+                        const [results, setResults] = useState(null);
+                        
+                        useEffect(() => {
+                            calculateTournamentResults().then(setResults);
+                        }, []);
+                        
+                        if (!results) {
+                            return createEl('div', { 
+                                style: { 
+                                    minHeight: '100vh', 
+                                    background: '#325682', 
+                                    color: 'white', 
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexDirection: 'column'
+                                } 
+                            }, [
+                                createEl('div', { key: 'loading', className: 'spinner' }),
+                                createEl('p', { key: 'text', style: { marginTop: '20px' } }, 'Calculating Results...')
+                            ]);
+                        }
+                        
+                        const maleResults = results.filter(p => p.gender === 'M').sort((a, b) => b.totalScore - a.totalScore);
+                        const femaleResults = results.filter(p => p.gender === 'F').sort((a, b) => b.totalScore - a.totalScore);
+                        const overallResults = results.sort((a, b) => b.totalScore - a.totalScore);
+                        const performanceResults = results.sort((a, b) => b.performanceIndex - a.performanceIndex);
+                        
+                        return createEl('div', { 
+                            style: { 
+                                minHeight: '100vh', 
+                                background: '#325682', 
+                                color: 'white', 
+                                padding: '24px' 
+                            } 
+                        }, [
+                            createEl('div', { key: 'container', className: 'container' }, [
+                                createEl('div', { 
+                                    key: 'header', 
+                                    style: { textAlign: 'center', marginBottom: '32px' } 
+                                }, [
+                                    createEl(Trophy, { key: 'trophy' }),
+                                    createEl('h1', { 
+                                        key: 'title',
+                                        style: { fontSize: '32px', fontWeight: 'bold', color: '#deff01', marginTop: '20px' } 
+                                    }, 'Tournament Results!')
+                                ]),
+                                
+                                // Overall Winner
+                                createEl('div', { key: 'overall-winner', className: 'card' }, [
+                                    createEl('h2', { 
+                                        key: 'title',
+                                        style: { fontSize: '22px', fontWeight: 'bold', color: '#deff01', marginBottom: '16px', textAlign: 'center' } 
+                                    }, '🏆 Tournament Champion'),
+                                    createEl('div', { 
+                                        key: 'winner',
+                                        style: { 
+                                            textAlign: 'center', 
+                                            fontSize: '18px', 
+                                            padding: '20px',
+                                            backgroundColor: 'rgba(222, 255, 1, 0.2)',
+                                            borderRadius: '8px',
+                                            border: '2px solid #deff01'
+                                        } 
+                                    }, [
+                                        createEl('div', { 
+                                            key: 'name',
+                                            style: { fontSize: '22px', fontWeight: 'bold', marginBottom: '8px' } 
+                                        }, overallResults[0]?.name),
+                                        createEl('div', { 
+                                            key: 'score',
+                                            style: { fontSize: '16px', color: '#deff01' } 
+                                        }, `${overallResults[0]?.totalScore} points • ${overallResults[0]?.wins}/${overallResults[0]?.matchesPlayed} wins`)
+                                    ])
+                                ]),
+                                
+                                // Gender Winners
+                                createEl('div', { 
+                                    key: 'gender-winners',
+                                    style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }
+                                }, [
+                                    createEl('div', { key: 'male-winner', className: 'card' }, [
+                                        createEl('h3', { 
+                                            key: 'title',
+                                            style: { fontSize: '16px', fontWeight: 'bold', color: '#deff01', marginBottom: '12px', textAlign: 'center' } 
+                                        }, '👨 Male Winner'),
+                                        maleResults[0] ? createEl('div', { 
+                                            key: 'winner',
+                                            style: { textAlign: 'center' }
+                                        }, [
+                                            createEl('div', { 
+                                                key: 'name',
+                                                style: { fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' } 
+                                            }, maleResults[0].name),
+                                            createEl('div', { 
+                                                key: 'score',
+                                                style: { fontSize: '14px', color: '#deff01' } 
+                                            }, `${maleResults[0].totalScore} pts`)
+                                        ]) : createEl('div', { 
+                                            key: 'no-male',
+                                            style: { textAlign: 'center', fontSize: '14px', color: '#94a3b8' } 
+                                        }, 'No male participants')
+                                    ]),
+                                    createEl('div', { key: 'female-winner', className: 'card' }, [
+                                        createEl('h3', { 
+                                            key: 'title',
+                                            style: { fontSize: '16px', fontWeight: 'bold', color: '#deff01', marginBottom: '12px', textAlign: 'center' } 
+                                        }, '👩 Female Winner'),
+                                        femaleResults[0] ? createEl('div', { 
+                                            key: 'winner',
+                                            style: { textAlign: 'center' }
+                                        }, [
+                                            createEl('div', { 
+                                                key: 'name',
+                                                style: { fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' } 
+                                            }, femaleResults[0].name),
+                                            createEl('div', { 
+                                                key: 'score',
+                                                style: { fontSize: '14px', color: '#deff01' } 
+                                            }, `${femaleResults[0].totalScore} pts`)
+                                        ]) : createEl('div', { 
+                                            key: 'no-female',
+                                            style: { textAlign: 'center', fontSize: '14px', color: '#94a3b8' } 
+                                        }, 'No female participants')
+                                    ])
+                                ]),
+                                
+                                // Performance Awards
+                                createEl('div', { key: 'performance', className: 'card' }, [
+                                    createEl('h3', { 
+                                        key: 'title',
+                                        style: { fontSize: '16px', fontWeight: 'bold', color: '#deff01', marginBottom: '16px', textAlign: 'center' } 
+                                    }, '⭐ Best Performance'),
+                                    createEl('div', { 
+                                        key: 'top-performers',
+                                        className: 'results-grid'
+                                    }, performanceResults.slice(0, 3).map((player, index) => 
+                                        createEl('div', {
+                                            key: index,
+                                            className: `result-item ${index === 0 ? 'winner' : ''}`
+                                        }, [
+                                            createEl('div', { key: 'info' }, [
+                                                createEl('div', { 
+                                                    key: 'name',
+                                                    style: { fontWeight: 'bold', fontSize: '14px' } 
+                                                }, `${index + 1}. ${player.name}`),
+                                                createEl('div', { 
+                                                    key: 'details',
+                                                    style: { fontSize: '12px', color: '#94a3b8' } 
+                                                }, `Avg: ${player.avgScore} (Expected: ${player.expectedAvgScore})`)
+                                            ]),
+                                            createEl('div', { 
+                                                key: 'performance',
+                                                style: { 
+                                                    fontSize: '12px', 
+                                                    fontWeight: 'bold',
+                                                    color: player.performanceIndex > 1.1 ? '#10b981' : player.performanceIndex < 0.9 ? '#ef4444' : '#94a3b8'
+                                                } 
+                                            }, `${Math.round((player.performanceIndex - 1) * 100)}%`)
+                                        ])
+                                    ))
+                                ]),
+                                
+                                createEl('button', { 
+                                    key: 'restart', 
+                                    onClick: () => { 
+                                        setStep(1); 
+                                        setTournament(null);
+                                        setPhase('setup');
+                                        setCurrentRound(0);
+                                        setScores({});
+                                        setRoundStarted(false);
+                                        setTimerRunning(false);
+                                        setTimeRemaining(0);
+                                    }, 
+                                    className: 'btn', 
+                                    style: { 
+                                        width: '100%',
+                                        backgroundColor: '#deff01', 
+                                        color: '#1e293b', 
+                                        padding: '18px', 
+                                        fontSize: '18px',
+                                        fontWeight: 'bold',
+                                        borderRadius: '12px'
+                                    } 
+                                }, 'Start New Tournament')
+                            ])
+                        ]);
+                    }
+
                     return createEl('div', { style: { minHeight: '100vh', background: '#325682' } }, [
                         // Header
-                        createEl('div', { 
-                            key: 'header', 
-                            style: { 
-                                backgroundColor: '#1a202c', 
-                                color: 'white', 
-                                padding: '12px 20px', 
-                                textAlign: 'center',
-                                position: 'sticky',
-                                top: 0,
-                                zIndex: 10
-                            } 
-                        },
+                        createEl('div', { key: 'header', className: 'header' }, [
+                            createEl('button', { 
+                                key: 'back', 
+                                onClick: () => setStep(1), 
+                                className: 'header-back'
+                            }, createEl(ChevronLeft)),
                             createEl('h2', { 
-                                style: { 
-                                    fontSize: '18px', 
-                                    fontWeight: 'bold', 
-                                    color: '#deff01' 
-                                } 
-                            }, phase === 'setup' ? 'REVIEW ROUND 1' : `ROUND ${currentRoundData?.round || 1}`)
-                        ),
+                                key: 'title',
+                                className: 'header-title'
+                            }, phase === 'setup' ? 'REVIEW ROUND 1' : `ROUND ${currentRoundData?.round || 1}`),
+                            createEl('div', { key: 'spacer', className: 'header-spacer' })
+                        ]),
                         
                         createEl('div', { key: 'content', className: 'container' }, [
                             errorMessage ? createEl('div', { key: 'error', className: 'error-message' }, errorMessage) : null,
@@ -1007,23 +1790,40 @@
                                     createEl('h3', { 
                                         key: 'title',
                                         style: { fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' } 
-                                    }, '🎯 Round 1 Ready'),
+                                    }, '🎯 Round 1 Assignments'),
                                     createEl('p', { 
                                         key: 'desc',
                                         style: { fontSize: '14px', marginBottom: '16px' } 
-                                    }, 'Your tournament is ready! Review the matches below.'),
-                                    createEl('button', {
-                                        key: 'start',
-                                        onClick: startRound,
-                                        className: 'btn',
-                                        style: {
-                                            backgroundColor: '#16a34a',
-                                            color: 'white',
-                                            padding: '12px 24px',
-                                            fontSize: '16px',
-                                            borderRadius: '8px'
-                                        }
-                                    }, '▶️ Start Round 1')
+                                    }, 'Review assignments. Make changes or start Round 1.'),
+                                    createEl('div', {
+                                        key: 'buttons',
+                                        style: { display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }
+                                    }, [
+                                        createEl('button', {
+                                            key: 'adjust',
+                                            onClick: () => setShowSwitchDialog(true),
+                                            className: 'btn',
+                                            style: {
+                                                backgroundColor: '#deff01',
+                                                color: '#1a202c',
+                                                padding: '12px 20px',
+                                                fontSize: '14px',
+                                                borderRadius: '8px'
+                                            }
+                                        }, '✏️ Adjust'),
+                                        createEl('button', {
+                                            key: 'start',
+                                            onClick: startRound,
+                                            className: 'btn',
+                                            style: {
+                                                backgroundColor: '#16a34a',
+                                                color: 'white',
+                                                padding: '12px 20px',
+                                                fontSize: '14px',
+                                                borderRadius: '8px'
+                                            }
+                                        }, '▶️ Start Round 1')
+                                    ])
                                 ]),
                                 
                                 // Preview courts
@@ -1049,15 +1849,32 @@
                                         padding: '16px', 
                                         borderRadius: '8px', 
                                         color: 'white',
-                                        textAlign: 'center'
+                                        textAlign: 'center',
+                                        marginBottom: '20px'
                                     } 
                                 }, [
-                                    createEl('strong', { style: { color: '#deff01' } }, 'Sitting Out: '), 
-                                    currentRoundData.sit_outs.join(', ')
+                                    createEl('strong', { 
+                                        key: 'label',
+                                        style: { color: '#deff01' } 
+                                    }, 'Sitting Out: '), 
+                                    createEl('span', { key: 'names' }, currentRoundData.sit_outs.join(', '))
                                 ]) : null
                             ]) : [
                                 // Playing phase
                                 createEl('div', { key: 'timer', style: { textAlign: 'center', marginBottom: '20px' } }, [
+                                    !roundStarted ? createEl('button', {
+                                        key: 'start-round',
+                                        onClick: startRound,
+                                        className: 'btn',
+                                        style: {
+                                            backgroundColor: '#16a34a',
+                                            color: 'white',
+                                            padding: '12px 24px',
+                                            fontSize: '18px',
+                                            borderRadius: '8px'
+                                        }
+                                    }, 'START ROUND') : null,
+                                    
                                     roundStarted ? createEl('div', {
                                         key: 'display',
                                         className: `timer-display ${isLastMinute ? 'timer-warning' : 'timer-normal'}`
@@ -1091,8 +1908,11 @@
                                         marginBottom: '20px'
                                     } 
                                 }, [
-                                    createEl('strong', { style: { color: '#deff01' } }, 'Sitting Out: '), 
-                                    currentRoundData.sit_outs.join(', ')
+                                    createEl('strong', { 
+                                        key: 'label',
+                                        style: { color: '#deff01' } 
+                                    }, 'Sitting Out: '), 
+                                    createEl('span', { key: 'names' }, currentRoundData.sit_outs.join(', '))
                                 ]) : null,
                                 
                                 // Next round button
@@ -1100,23 +1920,26 @@
                                     key: 'next', 
                                     onClick: () => {
                                         if (isLastRound) {
-                                            alert('Tournament Complete! 🏆');
+                                            setPhase('completed');
                                         } else {
-                                            // Simple next round for now
-                                            alert('Advanced round features coming soon! Use simple version for full tournament.');
+                                            handleAdvanceRound();
                                         }
                                     },
+                                    disabled: loading,
                                     className: 'btn', 
                                     style: { 
                                         width: '100%', 
-                                        backgroundColor: isLastRound ? '#805ad5' : '#deff01', 
+                                        backgroundColor: loading ? '#64748b' : (isLastRound ? '#805ad5' : '#deff01'), 
                                         color: isLastRound ? 'white' : '#1a202c', 
                                         padding: '16px', 
                                         fontSize: '18px',
                                         fontWeight: 'bold',
                                         borderRadius: '8px'
                                     } 
-                                }, isLastRound ? '🏆 Show Results' : `Next Round (${currentRound + 2}/${tournament.schedule.length})`) : createEl('div', { 
+                                }, [
+                                    createEl(CheckCircle, { key: 'icon' }),
+                                    createEl('span', { key: 'text' }, loading ? 'Loading...' : (isLastRound ? 'Show Results' : `Next Round (${currentRound + 2}/${tournament.schedule.length})`))
+                                ]) : createEl('div', { 
                                     key: 'waiting', 
                                     style: { 
                                         width: '100%', 
@@ -1131,7 +1954,7 @@
                                 }, 'Enter all scores to continue')
                             ],
 
-                            // Score Validation Dialog
+                            // Dialogs
                             createEl(ScoreValidationDialog, {
                                 key: 'validation',
                                 isOpen: scoreValidation.isOpen,
@@ -1139,6 +1962,24 @@
                                 teamAScore: scoreValidation.teamAScore,
                                 teamBScore: scoreValidation.teamBScore,
                                 onConfirm: confirmScore
+                            }),
+
+                            createEl(SkipPlayerDialog, {
+                                key: 'skip-dialog',
+                                isOpen: showSkipDialog,
+                                onClose: () => setShowSkipDialog(false),
+                                tournament,
+                                onSkipPlayersSelected: handleSkipPlayersSelected,
+                                maxSkips: tournament ? Math.max(0, tournament.players.length - (config.courts * 4)) : 0
+                            }),
+
+                            createEl(PlayerSwitchDialog, {
+                                key: 'switch-dialog',
+                                isOpen: showSwitchDialog,
+                                onClose: () => setShowSwitchDialog(false),
+                                tournament,
+                                currentRound,
+                                onSwitchesConfirmed: handleSwitchesConfirmed
                             })
                         ])
                     ]);
@@ -1166,14 +2007,14 @@
             // Render the app
             try {
                 ReactDOM.render(createEl(TournamentApp), document.getElementById('root'));
-                console.log('✅ DiNKR Tournament System loaded successfully');
+                console.log('✅ Complete DiNKR Tournament System loaded successfully');
             } catch (error) {
                 console.error('Failed to render app:', error);
                 document.getElementById('root').innerHTML = `
                     <div style="padding: 20px; text-align: center; background: #325682; color: white; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                         <h2 style="color: #dc2626; margin-bottom: 20px;">Rendering Error</h2>
                         <p style="margin-bottom: 20px;">Failed to initialize the tournament system.</p>
-                        <button onclick="window.location.reload()" style="background: #deff01; color: #1a202c; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer;">Reload</button>
+                        <button onclick="window.location.reload()" style="background: #deff01; color: #1a202c; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold;">Reload</button>
                     </div>
                 `;
             }
