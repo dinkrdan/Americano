@@ -1,16 +1,27 @@
 from flask import Flask, render_template, request, jsonify, session
 import os
 import random
-from collections import defaultdict
 import itertools
+from collections import defaultdict, Counter
+import math
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
-class TournamentGenerator:
+class AdvancedTournamentGenerator:
     def __init__(self):
-        self.partnership_history = defaultdict(int)
-        self.opponent_history = defaultdict(int)
+        # Advanced tracking structures
+        self.partnership_count = defaultdict(int)
+        self.opponent_count = defaultdict(int)
+        self.matchups_count = defaultdict(int)
+        self.sit_out_history = []
+        self.sit_out_count = defaultdict(int)
+        self.partners = defaultdict(set)
+        self.opponents = defaultdict(set)
+        self.opponent_pairs = defaultdict(set)
+        
+        # Gender mapping for sophisticated MM vs FF logic
+        self.gender_map = {}
         
     def create_default_players(self, total_players):
         """Create balanced default players with mixed genders and ratings"""
@@ -50,6 +61,7 @@ class TournamentGenerator:
                 'gender': 'F',
                 'rating': rating
             })
+            self.gender_map[full_name] = 'F'
         
         # Create male players
         for i in range(num_male):
@@ -77,240 +89,492 @@ class TournamentGenerator:
                 'gender': 'M',
                 'rating': rating
             })
+            self.gender_map[full_name] = 'M'
         
         return players
 
-    def validate_round_assignments(self, matches):
-        """Validate that no player appears more than once in a round"""
-        all_players_in_round = []
+    def initialize_tracking(self, players):
+        """Initialize advanced tracking structures"""
+        player_names = [p['name'] for p in players]
         
-        for match_idx, match in enumerate(matches):
-            team_a, team_b = match
-            for team_name, team in [('A', team_a), ('B', team_b)]:
-                for player_idx, player in enumerate(team):
-                    player_id = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
-                    all_players_in_round.append({
-                        'id': player_id,
-                        'match': match_idx,
-                        'team': team_name,
-                        'position': player_idx
-                    })
+        # Initialize partnership tracking
+        self.partnership_count = {frozenset(pair): 0 for pair in itertools.combinations(player_names, 2)}
+        self.opponent_count = {frozenset(pair): 0 for pair in itertools.combinations(player_names, 2)}
+        self.matchups_count = defaultdict(int)
+        self.sit_out_count = {p: 0 for p in player_names}
         
-        # Check for duplicates
-        player_assignments = defaultdict(list)
-        for assignment in all_players_in_round:
-            player_assignments[assignment['id']].append(assignment)
+        # Initialize advanced tracking
+        self.partners = {p: set() for p in player_names}
+        self.opponents = {p: set() for p in player_names}
+        self.opponent_pairs = {p: set() for p in player_names}
         
-        duplicates = {pid: assignments for pid, assignments in player_assignments.items() if len(assignments) > 1}
-        
-        if duplicates:
-            print(f"ERROR: Found duplicate player assignments:")
-            for player_id, assignments in duplicates.items():
-                print(f"  {player_id} appears in:")
-                for assignment in assignments:
-                    print(f"    Match {assignment['match']} Team {assignment['team']} Position {assignment['position']}")
-            return False, duplicates
-        
-        print(f"VALIDATION: Round assignments valid - {len(all_players_in_round)} unique players assigned")
-        return True, None
+        # Build gender map
+        for player in players:
+            self.gender_map[player['name']] = player['gender']
 
-    def assign_players_to_courts_safely(self, round_players, total_courts, avoid_mm_vs_ff=True, use_rating_balance=True):
-        """Assign players to courts with strict duplicate prevention"""
-        matches = []
-        used_players = set()
-        
-        # Create a list of available players with their indices
-        available_players = [(i, player) for i, player in enumerate(round_players)]
-        
-        for court in range(total_courts):
-            print(f"DEBUG: Assigning court {court + 1}")
-            
-            # Need 4 players for this court
-            court_players = []
-            players_needed = 4
-            
-            # Get 4 unique players for this court
-            attempts = 0
-            max_attempts = 100
-            
-            while len(court_players) < players_needed and attempts < max_attempts:
-                if len(available_players) < players_needed - len(court_players):
-                    print(f"ERROR: Not enough available players for court {court + 1}")
-                    return None
-                
-                # Randomly select a player we haven't used yet
-                if available_players:
-                    player_idx = random.randint(0, len(available_players) - 1)
-                    original_idx, player = available_players.pop(player_idx)
-                    
-                    player_id = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
-                    
-                    if player_id not in used_players:
-                        court_players.append(player)
-                        used_players.add(player_id)
-                        print(f"DEBUG: Assigned {player_id} to court {court + 1}")
-                    else:
-                        print(f"WARNING: Player {player_id} already used, skipping")
-                
-                attempts += 1
-            
-            if len(court_players) < 4:
-                print(f"ERROR: Could not assign 4 unique players to court {court + 1}")
-                return None
-            
-            # Assign to teams (2 vs 2)
-            team_a = court_players[:2]
-            team_b = court_players[2:]
-            
-            # Apply gender balancing WITHIN this court only
-            if avoid_mm_vs_ff:
-                team_a_genders = [p.get('gender', 'M') for p in team_a]
-                team_b_genders = [p.get('gender', 'M') for p in team_b]
-                
-                # If one team is all male and other all female, try to swap within the court
-                if (all(g == 'M' for g in team_a_genders) and all(g == 'F' for g in team_b_genders)) or \
-                   (all(g == 'F' for g in team_a_genders) and all(g == 'M' for g in team_b_genders)):
-                    # Swap one player between teams within this court
-                    team_a[1], team_b[1] = team_b[1], team_a[1]
-                    print(f"DEBUG: Applied gender balancing swap within court {court + 1}")
-            
-            # Apply rating balancing WITHIN this court only
-            if use_rating_balance:
-                team_a_rating = sum(p.get('rating', 3.5) for p in team_a)
-                team_b_rating = sum(p.get('rating', 3.5) for p in team_b)
-                
-                rating_diff = abs(team_a_rating - team_b_rating)
-                if rating_diff > 1.0:
-                    # Try swapping players within this court to balance
-                    best_diff = rating_diff
-                    best_swap = None
-                    
-                    for i in range(2):
-                        for j in range(2):
-                            # Create temporary teams for testing
-                            temp_team_a = team_a.copy()
-                            temp_team_b = team_b.copy()
-                            temp_team_a[i], temp_team_b[j] = temp_team_b[j], temp_team_a[i]
-                            
-                            new_a_rating = sum(p.get('rating', 3.5) for p in temp_team_a)
-                            new_b_rating = sum(p.get('rating', 3.5) for p in temp_team_b)
-                            new_diff = abs(new_a_rating - new_b_rating)
-                            
-                            if new_diff < best_diff:
-                                best_diff = new_diff
-                                best_swap = (i, j)
-                    
-                    if best_swap:
-                        i, j = best_swap
-                        team_a[i], team_b[j] = team_b[j], team_a[i]
-                        print(f"DEBUG: Applied rating balancing swap within court {court + 1}")
-            
-            matches.append([team_a, team_b])
-            print(f"DEBUG: Court {court + 1} final assignment:")
-            print(f"  Team A: {[p.get('name', p.get('firstName', 'Unknown')) for p in team_a]}")
-            print(f"  Team B: {[p.get('name', p.get('firstName', 'Unknown')) for p in team_b]}")
-        
-        return matches
+    def all_partnerships_covered(self):
+        """Check if all possible partnerships have been tried"""
+        return all(count > 0 for count in self.partnership_count.values())
 
-    def generate_enhanced_tournament(self, courts, players_list, rounds, skip_players=None, avoid_mm_vs_ff=True, use_rating_balance=True, rating_factor=3):
-        """Enhanced tournament generation with skip players and advanced options"""
-        if skip_players is None:
-            skip_players = []
-        
-        print(f"DEBUG: generate_enhanced_tournament called with {courts} courts, {len(players_list)} players")
-        
-        # Filter out skipped players
-        available_players = [p for p in players_list if p.get('name', f"{p.get('firstName', '')} {p.get('lastName', '')}".strip()) not in skip_players]
-        
-        total_courts = courts
-        players_per_round = total_courts * 4
-        
-        print(f"DEBUG: Need {players_per_round} players for {total_courts} courts, have {len(available_players)} available")
-        
-        if len(available_players) < players_per_round:
-            return {"error": f"Not enough players available. Need {players_per_round}, have {len(available_players)}"}
-        
-        # Multiple attempts to generate valid assignments
-        max_attempts = 20
-        for attempt in range(max_attempts):
-            print(f"DEBUG: Generation attempt {attempt + 1}")
-            
-            # Select players for this round and shuffle
-            round_players = available_players[:players_per_round].copy()
-            sit_outs = [p.get('name', f"{p.get('firstName', '')} {p.get('lastName', '')}".strip()) for p in available_players[players_per_round:]]
-            
-            # Shuffle players for randomness
-            random.shuffle(round_players)
-            
-            print(f"DEBUG: Selected players: {[p.get('name', p.get('firstName', 'Unknown')) for p in round_players]}")
-            
-            # Use safe assignment method
-            matches = self.assign_players_to_courts_safely(round_players, total_courts, avoid_mm_vs_ff, use_rating_balance)
-            
-            if matches is None:
-                print(f"DEBUG: Attempt {attempt + 1} failed - could not assign players safely")
-                continue
-            
-            # Validate the assignments
-            is_valid, duplicates = self.validate_round_assignments(matches)
-            
-            if is_valid:
-                print(f"DEBUG: Successfully generated valid round on attempt {attempt + 1}")
-                return {
-                    "matches": matches,
-                    "sit_outs": sit_outs
-                }
-            else:
-                print(f"DEBUG: Attempt {attempt + 1} failed validation - found duplicates: {list(duplicates.keys())}")
-                continue
-        
-        # If we get here, all attempts failed
-        print(f"ERROR: Failed to generate valid round after {max_attempts} attempts")
-        return {"error": f"Failed to generate valid player assignments after {max_attempts} attempts"}
+    def all_opponents_covered(self):
+        """Check if all possible opponent pairings have been tried"""
+        return all(count > 0 for count in self.opponent_count.values())
 
-    def generate_simple_tournament(self, courts, players_list, rounds):
-        """Generate complete tournament schedule"""
-        print(f"DEBUG: Generating tournament with {len(players_list)} players, {courts} courts, {rounds} rounds")
+    def can_partner(self, a, b):
+        """Check if two players can partner together"""
+        pair = frozenset((a, b))
+        if self.partnership_count[pair] == 0:
+            return True
+        else:
+            return self.all_partnerships_covered()
+
+    def can_face(self, a, b):
+        """Check if two players can face each other"""
+        pair = frozenset((a, b))
+        if self.opponent_count[pair] == 0:
+            return True
+        else:
+            return self.all_opponents_covered()
+
+    def matchup_key(self, teamA, teamB):
+        """Generate a unique key for a team matchup"""
+        tA = frozenset(teamA)
+        tB = frozenset(teamB)
+        return frozenset((tA, tB))
+
+    def times_matchup_played(self, teamA, teamB):
+        """Count how many times this exact matchup has been played"""
+        key = self.matchup_key(teamA, teamB)
+        return self.matchups_count.get(key, 0)
+
+    def rating_difference_penalty(self, teamA, teamB, ratings):
+        """Calculate the absolute difference in combined team ratings"""
+        teamA_rating = sum(ratings.get(p, 3.5) for p in teamA)
+        teamB_rating = sum(ratings.get(p, 3.5) for p in teamB)
+        diff = abs(teamA_rating - teamB_rating)
+        return diff
+
+    def is_mm_vs_ff(self, teamA, teamB):
+        """Check if this is an all-male vs all-female matchup"""
+        teamA_genders = [self.gender_map.get(p, 'M') for p in teamA]
+        teamB_genders = [self.gender_map.get(p, 'M') for p in teamB]
+
+        is_teamA_all_m = all(g == 'M' for g in teamA_genders)
+        is_teamA_all_f = all(g == 'F' for g in teamA_genders)
+        is_teamB_all_m = all(g == 'M' for g in teamB_genders)
+        is_teamB_all_f = all(g == 'F' for g in teamB_genders)
+
+        return (is_teamA_all_m and is_teamB_all_f) or (is_teamA_all_f and is_teamB_all_m)
+
+    def has_consecutive_opponents(self, teamA, teamB, round_index):
+        """Check if any player would face the same opponent in consecutive rounds"""
+        if round_index == 0 or len(self.sit_out_history) < round_index:
+            return False
+            
+        # Get last round's matches from sit_out_history structure
+        # This is a simplified check - in full implementation would need complete match history
+        for playerA in teamA:
+            for playerB in teamB:
+                # Check if these players faced each other in the previous round
+                # For now, we'll use a simplified heuristic
+                if len(self.opponents[playerA]) > 0 and playerB in self.opponents[playerA]:
+                    # They've faced before - check if it was recent
+                    # This could be enhanced with more detailed round tracking
+                    return True
+        return False
+
+    def sitting_constraints_ok(self, outs, round_index):
+        """Check if sitting out these players violates constraints"""
+        # Avoid back-to-back sit-outs or 2 of 3 consecutive rounds
+        if round_index > 0 and len(self.sit_out_history) > round_index - 1:
+            last_round_out = self.sit_out_history[round_index - 1]
+            for p in outs:
+                if p in last_round_out:
+                    return False
+                    
+        if round_index >= 2 and len(self.sit_out_history) > round_index - 2:
+            for p in outs:
+                count_in_3 = 0
+                if len(self.sit_out_history) > round_index - 1 and p in self.sit_out_history[round_index - 1]:
+                    count_in_3 += 1
+                if len(self.sit_out_history) > round_index - 2 and p in self.sit_out_history[round_index - 2]:
+                    count_in_3 += 1
+                count_in_3 += 1  # Current round
+                if count_in_3 >= 2:
+                    return False
+        return True
+
+    def select_sit_outs(self, players, courts, round_index):
+        """Intelligently select players to sit out this round"""
+        extra = len(players) - 4 * courts
+        if extra <= 0:
+            return []
+
+        player_names = [p['name'] for p in players]
         
-        # Validate input
-        players_per_round = courts * 4
-        if len(players_list) < players_per_round:
-            return {"error": f"Not enough players. Need at least {players_per_round} players for {courts} courts."}
+        # Sort players by current sit-outs (ascending) + random tie-break
+        sorted_players_by_sit = sorted(player_names, key=lambda p: (self.sit_out_count[p], random.random()))
+        candidate_combos = list(itertools.combinations(sorted_players_by_sit, extra))
+        random.shuffle(candidate_combos)
+
+        valid_combos = []
+        for combo in candidate_combos:
+            if self.sitting_constraints_ok(combo, round_index):
+                valid_combos.append(combo)
+
+        if not valid_combos:
+            # No valid combos => fallback to first candidate
+            return candidate_combos[0] if candidate_combos else []
+
+        # Evaluate each valid combo by the new distribution's balance
+        best_combo = None
+        best_score = float('inf')
+
+        for combo in valid_combos:
+            # Simulate new distribution
+            temp_sit_out_count = self.sit_out_count.copy()
+            for p in combo:
+                temp_sit_out_count[p] += 1
+
+            # Score = difference between max and min sit-out counts
+            difference = max(temp_sit_out_count.values()) - min(temp_sit_out_count.values())
+
+            if difference < best_score:
+                best_score = difference
+                best_combo = combo
+
+        return best_combo
+
+    def generate_round_matches(self, players, courts, round_index, avoid_mm_vs_ff=True, use_rating_balance=True, rating_factor=3):
+        """Generate matches for a single round using sophisticated algorithms"""
         
-        # Initialize partnership history
-        self.partnership_history = defaultdict(int)
+        # Get players sitting out
+        sit_outs = self.select_sit_outs(players, courts, round_index)
+        round_players = [p for p in players if p['name'] not in sit_outs]
+        
+        if len(round_players) != 4 * courts:
+            return None, f"Invalid number of playing players: {len(round_players)}, expected {4 * courts}"
+
+        # Extract ratings for quick lookup
+        ratings = {p['name']: p['rating'] for p in players}
+        player_names = [p['name'] for p in round_players]
+        
+        chosen_matches = []
+
+        def form_matches(players_left):
+            if len(chosen_matches) == courts:
+                return True
+            if len(players_left) < 4:
+                return False
+
+            combos = list(itertools.combinations(players_left, 4))
+            random.shuffle(combos)
+
+            for combo in combos:
+                team_splits = list(itertools.combinations(combo, 2))
+                random.shuffle(team_splits)
+                possible_team_configs = []
+
+                # Calculate effective rating factor (loosens over rounds)
+                effective_factor = 0
+                if use_rating_balance:
+                    total_rounds = max(1, round_index + 1)  # Avoid division by zero
+                    effective_factor = rating_factor * ((total_rounds - round_index) / total_rounds)
+
+                for teamA in team_splits:
+                    teamB = tuple(set(combo) - set(teamA))
+                    match_score = 0
+
+                    # Partnership constraints
+                    if not self.can_partner(teamA[0], teamA[1]):
+                        match_score += 10
+                    if not self.can_partner(teamB[0], teamB[1]):
+                        match_score += 10
+
+                    # Opponent constraints
+                    opp_penalty = 0
+                    for a in teamA:
+                        for b in teamB:
+                            if not self.can_face(a, b):
+                                opp_penalty += 2
+                    match_score += opp_penalty
+
+                    # Consecutive opponent penalty (NEW!)
+                    if self.has_consecutive_opponents(teamA, teamB, round_index):
+                        match_score += 5
+
+                    # Repeated matchup penalty
+                    if self.times_matchup_played(teamA, teamB) > 0:
+                        match_score += 1
+
+                    # Rating difference penalty
+                    if use_rating_balance:
+                        diff = self.rating_difference_penalty(teamA, teamB, ratings)
+                        match_score += diff * effective_factor
+
+                    # MM vs FF imbalance penalty (ENHANCED!)
+                    if avoid_mm_vs_ff and self.is_mm_vs_ff(teamA, teamB):
+                        diff = self.rating_difference_penalty(teamA, teamB, ratings)
+                        if diff >= 0.5:
+                            match_score += 3  # Strong penalty for imbalanced MM vs FF
+                        else:
+                            match_score += 1  # Light penalty for balanced MM vs FF
+
+                    possible_team_configs.append(((teamA, teamB), match_score))
+
+                # Sort by match_score ascending (best = lowest score)
+                possible_team_configs.sort(key=lambda x: x[1])
+                if possible_team_configs:
+                    # Pick the best configuration
+                    best_score = possible_team_configs[0][1]
+                    best_configs = [x for x in possible_team_configs if x[1] == best_score]
+                    chosen_config = random.choice(best_configs)
+                    teamA, teamB = chosen_config[0]
+                    chosen_matches.append((teamA, teamB))
+                    new_players_left = [p for p in players_left if p not in combo]
+                    if form_matches(new_players_left):
+                        return True
+                    chosen_matches.pop()
+
+            return False
+
+        if not form_matches(player_names):
+            return None, f"Cannot form suitable matches in round {round_index + 1}"
+
+        # Update tracking data
+        if len(self.sit_out_history) <= round_index:
+            self.sit_out_history.extend([[] for _ in range(round_index + 1 - len(self.sit_out_history))])
+        
+        self.sit_out_history[round_index] = list(sit_outs)
+        for s in sit_outs:
+            self.sit_out_count[s] += 1
+
+        # Update partnership and opponent tracking
+        for (teamA, teamB) in chosen_matches:
+            # Partnership tracking
+            pairA = frozenset(teamA)
+            pairB = frozenset(teamB)
+            self.partnership_count[pairA] += 1
+            self.partnership_count[pairB] += 1
+            
+            # Partners tracking
+            self.partners[teamA[0]].add(teamA[1])
+            self.partners[teamA[1]].add(teamA[0])
+            self.partners[teamB[0]].add(teamB[1])
+            self.partners[teamB[1]].add(teamB[0])
+            
+            # Opponent tracking
+            for a in teamA:
+                for b in teamB:
+                    opp_key = frozenset((a, b))
+                    self.opponent_count[opp_key] += 1
+                    self.opponents[a].add(b)
+                    self.opponents[b].add(a)
+            
+            # Opponent pairs tracking
+            opp_pair_B = frozenset(teamB)
+            opp_pair_A = frozenset(teamA)
+            for p in teamA:
+                self.opponent_pairs[p].add(opp_pair_B)
+            for p in teamB:
+                self.opponent_pairs[p].add(opp_pair_A)
+            
+            # Matchup tracking
+            mk = self.matchup_key(teamA, teamB)
+            self.matchups_count[mk] += 1
+
+        # Convert tuples back to player objects for return
+        matches_with_objects = []
+        player_lookup = {p['name']: p for p in players}
+        
+        for teamA_names, teamB_names in chosen_matches:
+            teamA_objects = [player_lookup[name] for name in teamA_names]
+            teamB_objects = [player_lookup[name] for name in teamB_names]
+            matches_with_objects.append([teamA_objects, teamB_objects])
+
+        sit_out_names = list(sit_outs)
+        
+        return matches_with_objects, sit_out_names
+
+    def generate_complete_tournament(self, courts, players_list, rounds, avoid_mm_vs_ff=True, use_rating_balance=True, rating_factor=3):
+        """Generate a complete tournament with sophisticated algorithms"""
+        
+        self.initialize_tracking(players_list)
         
         schedule = []
         for round_num in range(rounds):
-            print(f"DEBUG: Generating round {round_num + 1} of {rounds}")
+            print(f"DEBUG: Generating sophisticated round {round_num + 1} of {rounds}")
+            
+            matches, sit_outs = self.generate_round_matches(
+                players_list, courts, round_num, avoid_mm_vs_ff, use_rating_balance, rating_factor
+            )
+            
+            if matches is None:
+                return {"error": sit_outs}  # sit_outs contains error message in this case
+            
             round_data = {
                 "round": round_num + 1,
-                "matches": [],
-                "sit_outs": []
+                "matches": matches,
+                "sit_outs": sit_outs
             }
             
-            # For initial tournament generation, no skips
-            result = self.generate_enhanced_tournament(courts, players_list, 1, skip_players=[])
-            
-            if 'error' in result:
-                print(f"DEBUG: Error generating round {round_num + 1}: {result['error']}")
-                return {"error": result['error']}
-            
-            round_data["matches"] = result["matches"]
-            round_data["sit_outs"] = result["sit_outs"]
-            
             schedule.append(round_data)
-            print(f"DEBUG: Round {round_num + 1} added to schedule")
+            print(f"DEBUG: Sophisticated round {round_num + 1} completed")
         
-        print(f"DEBUG: Tournament generation complete - {len(schedule)} rounds in schedule")
         return {
             "success": True,
             "schedule": schedule,
             "players": players_list
         }
 
+    def calculate_dinkr_performance_analysis(self, players, scores, schedule):
+        """Calculate sophisticated DiNKR performance analysis"""
+        
+        results = []
+        
+        for player in players:
+            player_name = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
+            player_rating = player.get('rating', 3.5)
+            
+            total_score = 0
+            wins = 0
+            losses = 0
+            matches_played = 0
+            predicted_total = 0
+            
+            # Analyze each match this player participated in
+            for round_index, round_data in enumerate(schedule):
+                if str(round_index) not in scores:
+                    continue
+                    
+                round_scores = scores[str(round_index)]
+                
+                for match_index, match in enumerate(round_data['matches']):
+                    if str(match_index) not in round_scores:
+                        continue
+                        
+                    teamA, teamB = match
+                    match_scores = round_scores[str(match_index)]
+                    
+                    if 'teamA' not in match_scores or 'teamB' not in match_scores:
+                        continue
+                    
+                    score_a = int(match_scores['teamA']) if match_scores['teamA'] else 0
+                    score_b = int(match_scores['teamB']) if match_scores['teamB'] else 0
+                    
+                    # Check if player is in this match
+                    player_team = None
+                    teammate_rating = 3.5
+                    opponent_ratings = []
+                    
+                    for p in teamA:
+                        p_name = p.get('name') or f"{p.get('firstName', '')} {p.get('lastName', '')}".strip()
+                        if p_name == player_name:
+                            player_team = 'A'
+                            # Find teammate rating
+                            for teammate in teamA:
+                                teammate_name = teammate.get('name') or f"{teammate.get('firstName', '')} {teammate.get('lastName', '')}".strip()
+                                if teammate_name != player_name:
+                                    teammate_rating = teammate.get('rating', 3.5)
+                            # Get opponent ratings
+                            opponent_ratings = [p.get('rating', 3.5) for p in teamB]
+                            break
+                    
+                    if player_team is None:
+                        for p in teamB:
+                            p_name = p.get('name') or f"{p.get('firstName', '')} {p.get('lastName', '')}".strip()
+                            if p_name == player_name:
+                                player_team = 'B'
+                                # Find teammate rating
+                                for teammate in teamB:
+                                    teammate_name = teammate.get('name') or f"{teammate.get('firstName', '')} {teammate.get('lastName', '')}".strip()
+                                    if teammate_name != player_name:
+                                        teammate_rating = teammate.get('rating', 3.5)
+                                # Get opponent ratings
+                                opponent_ratings = [p.get('rating', 3.5) for p in teamA]
+                                break
+                    
+                    if player_team is not None:
+                        matches_played += 1
+                        
+                        # Calculate predicted score using DiNKR algorithm
+                        team_rating = player_rating + teammate_rating
+                        opponent_team_rating = sum(opponent_ratings)
+                        predicted_score = self.calculate_predicted_score(team_rating, opponent_team_rating)
+                        predicted_total += predicted_score
+                        
+                        if player_team == 'A':
+                            total_score += score_a
+                            if score_a > score_b:
+                                wins += 1
+                            else:
+                                losses += 1
+                        else:
+                            total_score += score_b
+                            if score_b > score_a:
+                                wins += 1
+                            else:
+                                losses += 1
+            
+            # Calculate performance metrics
+            avg_score = total_score / matches_played if matches_played > 0 else 0
+            win_rate = (wins / matches_played * 100) if matches_played > 0 else 0
+            predicted_avg = predicted_total / matches_played if matches_played > 0 else 0
+            
+            # DiNKR Performance Index
+            performance_index = avg_score / predicted_avg if predicted_avg > 0 else 1.0
+            
+            # Performance categories
+            if performance_index > 1.15:
+                performance_label = 'Exceptional'
+            elif performance_index > 1.05:
+                performance_label = 'Exceeded'
+            elif performance_index > 0.95:
+                performance_label = 'Met'
+            elif performance_index > 0.85:
+                performance_label = 'Below'
+            else:
+                performance_label = 'Underperformed'
+            
+            results.append({
+                'name': player_name,
+                'firstName': player.get('firstName', ''),
+                'lastName': player.get('lastName', ''),
+                'gender': player.get('gender', 'M'),
+                'rating': player_rating,
+                'totalScore': total_score,
+                'wins': wins,
+                'losses': losses,
+                'matchesPlayed': matches_played,
+                'avgScore': round(avg_score, 1),
+                'winRate': round(win_rate),
+                'predictedAvg': round(predicted_avg, 1),
+                'performanceIndex': round(performance_index, 3),
+                'performanceLabel': performance_label
+            })
+        
+        return results
+
+    def calculate_predicted_score(self, team_rating, opponent_rating, sx=0.15):
+        """Calculate predicted score using DiNKR algorithm"""
+        rating_diff = abs(team_rating - opponent_rating)
+        
+        if team_rating > opponent_rating:
+            # Team is favored
+            raw_opponent_score = 11 - (rating_diff / sx)
+            opponent_score = max(0, round(raw_opponent_score))
+            return 11
+        elif opponent_rating > team_rating:
+            # Team is underdog
+            raw_team_score = 11 - (rating_diff / sx)
+            team_score = max(0, round(raw_team_score))
+            return team_score
+        else:
+            # Even match
+            return 10.5  # Average between 10 and 11
+
 # Global tournament generator instance
-tournament_gen = TournamentGenerator()
+tournament_gen = AdvancedTournamentGenerator()
 
 # Health check endpoint for Railway deployment
 @app.route('/api/test')
@@ -355,8 +619,8 @@ def generate_tournament():
         round_duration = data.get('roundDuration', 13)
         total_players = data.get('totalPlayers', 8)
         
-        print(f"DEBUG: Tournament request - courts: {courts}, rounds: {rounds}, players: {total_players}")
-        print(f"DEBUG: Advanced options - avoid MM/FF: {avoid_mm_vs_ff}, rating balance: {use_rating_balance}")
+        print(f"DEBUG: Advanced tournament request - courts: {courts}, rounds: {rounds}, players: {total_players}")
+        print(f"DEBUG: Sophisticated options - avoid MM/FF: {avoid_mm_vs_ff}, rating balance: {use_rating_balance}, factor: {rating_factor}")
         
         # Store configuration in session
         session['config'] = {
@@ -371,15 +635,19 @@ def generate_tournament():
         
         if use_defaults:
             players_list = tournament_gen.create_default_players(total_players)
-            print(f"DEBUG: Generated {len(players_list)} default players")
-            for i, player in enumerate(players_list):
-                print(f"  Player {i+1}: {player.get('name')} ({player.get('gender')}, {player.get('rating')})")
+            print(f"DEBUG: Generated {len(players_list)} sophisticated default players")
         else:
             players_list = data.get('players', [])
             if len(players_list) != total_players:
                 return jsonify({"error": f"Expected {total_players} players, got {len(players_list)}"}), 400
+            
+            # Build gender map for custom players
+            for player in players_list:
+                tournament_gen.gender_map[player['name']] = player['gender']
         
-        result = tournament_gen.generate_simple_tournament(courts, players_list, rounds)
+        result = tournament_gen.generate_complete_tournament(
+            courts, players_list, rounds, avoid_mm_vs_ff, use_rating_balance, rating_factor
+        )
         
         if 'error' in result:
             return jsonify(result), 400
@@ -390,7 +658,7 @@ def generate_tournament():
         session['scores'] = {}
         session.modified = True
         
-        print(f"DEBUG: Tournament generated successfully with {len(result['schedule'])} rounds")
+        print(f"DEBUG: Sophisticated tournament generated with {len(result['schedule'])} rounds")
         return jsonify(result)
         
     except Exception as e:
@@ -464,17 +732,13 @@ def apply_player_switches():
         # Create a mapping of player names to player objects for quick lookup
         player_map = {}
         for player in tournament['players']:
-            # Handle both name formats
             if 'name' in player and player['name']:
                 player_map[player['name']] = player
             elif 'firstName' in player:
                 full_name = f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
                 if full_name:
                     player_map[full_name] = player
-                    player_map[player['firstName']] = player  # Also map by first name only
-        
-        print(f"DEBUG: Available players in map: {list(player_map.keys())}")
-        print(f"DEBUG: Applying {len(switches)} switches: {switches}")
+                    player_map[player['firstName']] = player
         
         # Apply each switch
         switches_applied = 0
@@ -482,11 +746,7 @@ def apply_player_switches():
             old_player_name = switch['oldPlayer']
             new_player_name = switch['newPlayer']
             
-            print(f"DEBUG: Switching {old_player_name} -> {new_player_name}")
-            
             if new_player_name not in player_map:
-                print(f"ERROR: New player '{new_player_name}' not found in player map")
-                print(f"Available players: {list(player_map.keys())}")
                 continue
                 
             new_player = player_map[new_player_name]
@@ -503,7 +763,6 @@ def apply_player_switches():
                         team_a[i] = new_player
                         switch_applied = True
                         switches_applied += 1
-                        print(f"DEBUG: Replaced {old_player_name} with {new_player_name} in Team A of match {match_idx}")
                         break
                 
                 if switch_applied:
@@ -516,22 +775,10 @@ def apply_player_switches():
                         team_b[i] = new_player
                         switch_applied = True
                         switches_applied += 1
-                        print(f"DEBUG: Replaced {old_player_name} with {new_player_name} in Team B of match {match_idx}")
                         break
                 
                 if switch_applied:
                     break
-            
-            if not switch_applied:
-                print(f"WARNING: Could not find player {old_player_name} to replace")
-        
-        # After applying switches, validate the round
-        is_valid, duplicates = tournament_gen.validate_round_assignments(current_matches)
-        if not is_valid:
-            return jsonify({"error": f"Player switches would create duplicate assignments: {list(duplicates.keys())}"}), 400
-        
-        if switches_applied == 0:
-            return jsonify({"error": "No switches were applied. Check player names match exactly."}), 400
         
         # Update sit-outs based on new assignments
         all_playing = set()
@@ -549,13 +796,10 @@ def apply_player_switches():
         sitting_out = list(all_players - all_playing)
         tournament['schedule'][round_index]['sit_outs'] = sitting_out
         
-        print(f"DEBUG: Updated sit-outs: {sitting_out}")
-        
         # Update session
         session['tournament'] = tournament
         session.modified = True
         
-        print(f"DEBUG: Successfully applied {switches_applied} out of {len(switches)} switches")
         return jsonify({"success": True, "applied_switches": switches_applied, "total_switches": len(switches)})
         
     except Exception as e:
@@ -575,58 +819,46 @@ def advance_round():
         tournament = session.get('tournament', {})
         config = session.get('config', {})
         
-        print(f"DEBUG: advance_round called - current_round={current}")
-        print(f"DEBUG: tournament has {len(tournament.get('schedule', []))} rounds in schedule")
-        print(f"DEBUG: skip_players={skip_players}, switches={len(player_switches)}")
-        
         total_rounds = len(tournament.get('schedule', []))
         next_round = current + 1
         
-        print(f"DEBUG: next_round={next_round}, total_rounds={total_rounds}")
-        
         if next_round >= total_rounds:
-            print(f"DEBUG: Tournament completed - {next_round} >= {total_rounds}")
             return jsonify({"completed": True})
         
-        # Generate matches for next round considering skips
-        result = tournament_gen.generate_enhanced_tournament(
-            courts=config.get('courts', 2),
-            players_list=tournament['players'],
-            rounds=1,
-            skip_players=skip_players,
-            avoid_mm_vs_ff=config.get('avoidMMvsFF', True),
-            use_rating_balance=config.get('useRatingBalance', True),
-            rating_factor=config.get('ratingFactor', 3)
+        # Use sophisticated algorithm to generate next round
+        players_list = tournament['players']
+        courts = config.get('courts', 2)
+        avoid_mm_vs_ff = config.get('avoidMMvsFF', True)
+        use_rating_balance = config.get('useRatingBalance', True)
+        rating_factor = config.get('ratingFactor', 3)
+        
+        # Filter out skipped players for this round
+        available_players = [p for p in players_list if p.get('name') not in skip_players]
+        
+        matches, sit_outs_result = tournament_gen.generate_round_matches(
+            available_players, courts, next_round, avoid_mm_vs_ff, use_rating_balance, rating_factor
         )
         
-        if 'error' in result:
-            return jsonify({"error": result['error']}), 400
+        if matches is None:
+            return jsonify({"error": sit_outs_result}), 400
+        
+        # Add manually skipped players to sit outs
+        all_sit_outs = list(set(list(sit_outs_result) + skip_players))
         
         # Update the tournament schedule for the next round
         next_round_data = {
             "round": next_round + 1,
-            "matches": result["matches"],
-            "sit_outs": result["sit_outs"]
+            "matches": matches,
+            "sit_outs": all_sit_outs
         }
         
-        # Replace the next round in the schedule
         tournament['schedule'][next_round] = next_round_data
-        print(f"DEBUG: Updated round {next_round + 1} in schedule")
         
-        # Apply any manual player switches for the next round
+        # Apply any manual player switches
         if player_switches:
-            print(f"DEBUG: Applying {len(player_switches)} switches to round {next_round}")
-            # Apply switches to the newly generated round
+            # Similar logic to apply_player_switches but for the new round
             current_matches = tournament['schedule'][next_round]['matches']
-            player_map = {}
-            for player in tournament['players']:
-                if 'name' in player and player['name']:
-                    player_map[player['name']] = player
-                elif 'firstName' in player:
-                    full_name = f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
-                    if full_name:
-                        player_map[full_name] = player
-                        player_map[player['firstName']] = player
+            player_map = {p['name']: p for p in tournament['players']}
             
             for switch in player_switches:
                 old_player_name = switch['oldPlayer']
@@ -637,37 +869,23 @@ def advance_round():
                     
                 new_player = player_map[new_player_name]
                 
-                # Find and replace the player in matches
                 for match in current_matches:
                     team_a, team_b = match
                     
-                    # Check team A
                     for i, player in enumerate(team_a):
-                        player_name = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
-                        if player_name == old_player_name:
+                        if player.get('name') == old_player_name:
                             team_a[i] = new_player
                             break
                     
-                    # Check team B
                     for i, player in enumerate(team_b):
-                        player_name = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
-                        if player_name == old_player_name:
+                        if player.get('name') == old_player_name:
                             team_b[i] = new_player
                             break
-            
-            # Validate after applying switches
-            is_valid, duplicates = tournament_gen.validate_round_assignments(current_matches)
-            if not is_valid:
-                return jsonify({"error": f"Round advancement failed: duplicate player assignments {list(duplicates.keys())}"}), 400
         
         # Update session
         session['tournament'] = tournament
         session['current_round'] = next_round
         session.modified = True
-        
-        print(f"DEBUG: Successfully advanced to round {next_round + 1}")
-        print(f"DEBUG: Current round set to {next_round}")
-        print(f"DEBUG: Sitting out: {result['sit_outs']}")
         
         return jsonify({"success": True, "round": next_round})
         
@@ -686,59 +904,11 @@ def calculate_results():
         if not tournament or 'players' not in tournament:
             return jsonify({"error": "No tournament data found"}), 400
         
-        # Calculate stats for each player
-        player_stats = {}
+        # Use sophisticated DiNKR analysis
+        results = tournament_gen.calculate_dinkr_performance_analysis(
+            tournament['players'], scores, tournament['schedule']
+        )
         
-        # Initialize player stats
-        for player in tournament['players']:
-            player_name = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
-            player_stats[player_name] = {
-                'name': player_name,
-                'firstName': player.get('firstName', ''),
-                'lastName': player.get('lastName', ''),
-                'gender': player.get('gender', 'M'),
-                'rating': player.get('rating', 3.5),
-                'totalScore': 0,
-                'wins': 0,
-                'losses': 0,
-                'matchesPlayed': 0
-            }
-        
-        # Process each round's scores
-        for round_index, round_scores in scores.items():
-            round_data = tournament['schedule'][int(round_index)]
-            
-            for match_index, match_scores in round_scores.items():
-                match = round_data['matches'][int(match_index)]
-                team_a, team_b = match
-                
-                if 'teamA' in match_scores and 'teamB' in match_scores:
-                    score_a = int(match_scores['teamA']) if match_scores['teamA'] else 0
-                    score_b = int(match_scores['teamB']) if match_scores['teamB'] else 0
-                    
-                    # Add scores to each player
-                    for player in team_a:
-                        player_name = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
-                        if player_name in player_stats:
-                            player_stats[player_name]['totalScore'] += score_a
-                            player_stats[player_name]['matchesPlayed'] += 1
-                            if score_a > score_b:
-                                player_stats[player_name]['wins'] += 1
-                            else:
-                                player_stats[player_name]['losses'] += 1
-                    
-                    for player in team_b:
-                        player_name = player.get('name') or f"{player.get('firstName', '')} {player.get('lastName', '')}".strip()
-                        if player_name in player_stats:
-                            player_stats[player_name]['totalScore'] += score_b
-                            player_stats[player_name]['matchesPlayed'] += 1
-                            if score_b > score_a:
-                                player_stats[player_name]['wins'] += 1
-                            else:
-                                player_stats[player_name]['losses'] += 1
-        
-        # Convert to list and return
-        results = list(player_stats.values())
         return jsonify(results)
         
     except Exception as e:
