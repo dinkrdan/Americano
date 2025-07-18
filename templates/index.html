@@ -1375,6 +1375,8 @@
                             totalPlayers: config.totalPlayers
                         };
 
+                        console.log('Sending tournament request:', requestData);
+
                         const response = await fetch('/api/generate_tournament', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1382,6 +1384,7 @@
                         });
 
                         const result = await response.json();
+                        console.log('Tournament response:', result);
 
                         if (response.ok && result.success) {
                             setTournament(result);
@@ -1394,6 +1397,7 @@
                             showError(result.error || 'Failed to generate tournament');
                         }
                     } catch (error) {
+                        console.error('Tournament generation error:', error);
                         showError('Network error: ' + error.message);
                     } finally {
                         setLoading(false);
@@ -1528,9 +1532,11 @@
                     }
                 };
 
+                // FIXED: Better error handling for round advancement
                 const advanceRound = async (skipPlayers = [], playerSwitches = []) => {
                     try {
                         setLoading(true);
+                        console.log('Advancing round with skip players:', skipPlayers, 'switches:', playerSwitches);
                         
                         const response = await fetch('/api/advance_round', {
                             method: 'POST',
@@ -1539,36 +1545,59 @@
                         });
 
                         const result = await response.json();
+                        console.log('Advance round response:', result);
 
                         if (result.completed) {
                             setPhase('completed');
-                        } else if (result.success) {
-                            const stateResponse = await fetch('/api/get_tournament_state');
-                            const state = await stateResponse.json();
-                            
-                            if (state.tournament) {
-                                setTournament(state.tournament);
-                                setCurrentRound(state.current_round);
-                                setScores(state.scores);
+                            return;
+                        }
+
+                        if (!response.ok) {
+                            showError(result.error || 'Failed to advance round');
+                            return;
+                        }
+
+                        if (result.success) {
+                            // FIXED: Fetch fresh tournament state
+                            try {
+                                const stateResponse = await fetch('/api/get_tournament_state');
+                                
+                                if (!stateResponse.ok) {
+                                    throw new Error('Failed to fetch tournament state');
+                                }
+                                
+                                const state = await stateResponse.json();
+                                console.log('Fresh tournament state:', state);
+                                
+                                if (state.tournament && state.tournament.schedule) {
+                                    setTournament(state.tournament);
+                                    setCurrentRound(state.current_round);
+                                    setScores(state.scores || {});
+                                    setRoundStarted(false);
+                                    setTimerRunning(false);
+                                    setTimeRemaining(0);
+                                    setPhase('playing');
+                                    
+                                    let message = `Advanced to Round ${result.round + 1}`;
+                                    if (skipPlayers.length > 0) {
+                                        message += ` with ${skipPlayers.length} player(s) skipping`;
+                                    }
+                                    if (playerSwitches.length > 0) {
+                                        message += ` and ${playerSwitches.length} manual assignment(s)`;
+                                    }
+                                    showSuccess(message);
+                                } else {
+                                    showError('Tournament state is invalid after round advancement');
+                                }
+                            } catch (stateError) {
+                                console.error('Error fetching tournament state:', stateError);
+                                showError('Failed to update tournament state: ' + stateError.message);
                             }
-                            
-                            setRoundStarted(false);
-                            setTimerRunning(false);
-                            setTimeRemaining(0);
-                            setPhase('playing');
-                            
-                            let message = `Advanced to Round ${result.round + 1}`;
-                            if (skipPlayers.length > 0) {
-                                message += ` with ${skipPlayers.length} player(s) skipping`;
-                            }
-                            if (playerSwitches.length > 0) {
-                                message += ` and ${playerSwitches.length} manual assignment(s)`;
-                            }
-                            showSuccess(message);
                         } else {
                             showError(result.error || 'Failed to advance round');
                         }
                     } catch (error) {
+                        console.error('Round advancement error:', error);
                         showError('Network error: ' + error.message);
                     } finally {
                         setLoading(false);
@@ -1661,10 +1690,10 @@
                                         key: 'players',
                                         value: config.totalPlayers,
                                         onChange: (value) => setConfig(prev => ({...prev, totalPlayers: value})),
-                                        min: 4,
+                                        min: config.courts * 4, // FIXED: Enforce minimum players
                                         max: 100,
                                         label: 'Number of Players',
-                                        helpText: `${config.courts * 4} will play each round.`
+                                        helpText: `${config.courts * 4} will play each round. Need at least ${config.courts * 4} players.`
                                     }),
                                     createEl(NumberInput, {
                                         key: 'rounds',
@@ -1744,11 +1773,11 @@
                             createEl('button', { 
                                 key: 'next', 
                                 onClick: () => setStep(2), 
-                                disabled: loading, 
+                                disabled: loading || config.totalPlayers < config.courts * 4, // FIXED: Disable if invalid
                                 className: 'btn', 
                                 style: { 
                                     width: '100%', 
-                                    backgroundColor: loading ? '#64748b' : '#deff01', 
+                                    backgroundColor: (loading || config.totalPlayers < config.courts * 4) ? '#64748b' : '#deff01', 
                                     color: '#1e293b', 
                                     padding: '18px', 
                                     fontSize: '18px',
@@ -2179,172 +2208,4 @@
                                         marginBottom: '20px'
                                     } 
                                 }, [
-                                    createEl('strong', { 
-                                        key: 'label',
-                                        style: { color: '#deff01' } 
-                                    }, 'Sitting Out: '), 
-                                    createEl('span', { key: 'names' }, currentRoundData.sit_outs.join(', '))
-                                ]) : null
-                            ]) : [
-                                // Playing phase
-                                createEl('div', { key: 'timer', style: { textAlign: 'center', marginBottom: '20px' } }, [
-                                    !roundStarted ? createEl('button', {
-                                        key: 'start-round',
-                                        onClick: startRound,
-                                        className: 'btn',
-                                        style: {
-                                            backgroundColor: '#16a34a',
-                                            color: 'white',
-                                            padding: '12px 24px',
-                                            fontSize: '18px',
-                                            borderRadius: '8px'
-                                        }
-                                    }, 'START ROUND') : null,
-                                    
-                                    roundStarted ? createEl('div', {
-                                        key: 'display',
-                                        className: `timer-display ${isLastMinute ? 'timer-warning' : 'timer-normal'}`
-                                    }, formatTime(timeRemaining)) : null
-                                ]),
                                 
-                                // Active courts
-                                ...currentRoundData.matches.map((match, matchIndex) => 
-                                    createEl(Court, { 
-                                        key: matchIndex, 
-                                        match, 
-                                        matchIndex, 
-                                        roundIndex: currentRound, 
-                                        courtNumber: matchIndex + 1,
-                                        scores,
-                                        updateScore,
-                                        onScoreValidation: handleScoreValidation,
-                                        roundStarted
-                                    })
-                                ),
-                                
-                                // Sit outs
-                                currentRoundData.sit_outs?.length > 0 ? createEl('div', { 
-                                    key: 'sitouts', 
-                                    style: { 
-                                        backgroundColor: 'rgba(107, 114, 128, 0.5)', 
-                                        padding: '16px', 
-                                        borderRadius: '8px', 
-                                        color: 'white',
-                                        textAlign: 'center',
-                                        marginBottom: '20px'
-                                    } 
-                                }, [
-                                    createEl('strong', { 
-                                        key: 'label',
-                                        style: { color: '#deff01' } 
-                                    }, 'Sitting Out: '), 
-                                    createEl('span', { key: 'names' }, currentRoundData.sit_outs.join(', '))
-                                ]) : null,
-                                
-                                // Next round button
-                                isCurrentRoundComplete ? createEl('button', { 
-                                    key: 'next', 
-                                    onClick: () => {
-                                        if (isLastRound) {
-                                            setPhase('completed');
-                                        } else {
-                                            handleAdvanceRound();
-                                        }
-                                    },
-                                    disabled: loading,
-                                    className: 'btn', 
-                                    style: { 
-                                        width: '100%', 
-                                        backgroundColor: loading ? '#64748b' : (isLastRound ? '#805ad5' : '#deff01'), 
-                                        color: isLastRound ? 'white' : '#1a202c', 
-                                        padding: '16px', 
-                                        fontSize: '18px',
-                                        fontWeight: 'bold',
-                                        borderRadius: '8px'
-                                    } 
-                                }, [
-                                    createEl(CheckCircle, { key: 'icon' }),
-                                    createEl('span', { key: 'text' }, loading ? 'Loading...' : (isLastRound ? 'Show Results' : `Next Round (${currentRound + 2}/${tournament.schedule.length})`))
-                                ]) : createEl('div', { 
-                                    key: 'waiting', 
-                                    style: { 
-                                        width: '100%', 
-                                        backgroundColor: '#718096', 
-                                        color: '#cbd5e0', 
-                                        fontWeight: 'bold', 
-                                        padding: '16px', 
-                                        borderRadius: '8px', 
-                                        fontSize: '18px', 
-                                        textAlign: 'center' 
-                                    } 
-                                }, 'Enter all scores to continue')
-                            ],
-
-                            // Dialogs
-                            createEl(ScoreValidationDialog, {
-                                key: 'validation',
-                                isOpen: scoreValidation.isOpen,
-                                onClose: () => setScoreValidation({ ...scoreValidation, isOpen: false }),
-                                teamAScore: scoreValidation.teamAScore,
-                                teamBScore: scoreValidation.teamBScore,
-                                onConfirm: confirmScore
-                            }),
-
-                            createEl(SkipPlayerDialog, {
-                                key: 'skip-dialog',
-                                isOpen: showSkipDialog,
-                                onClose: () => setShowSkipDialog(false),
-                                tournament,
-                                onSkipPlayersSelected: handleSkipPlayersSelected,
-                                maxSkips: tournament ? Math.max(0, tournament.players.length - (config.courts * 4)) : 0
-                            }),
-
-                            createEl(PlayerSwitchDialog, {
-                                key: 'switch-dialog',
-                                isOpen: showSwitchDialog,
-                                onClose: () => setShowSwitchDialog(false),
-                                tournament,
-                                currentRound,
-                                onSwitchesConfirmed: handleSwitchesConfirmed
-                            })
-                        ])
-                    ]);
-                }
-
-                // Default loading state
-                return createEl('div', { 
-                    style: { 
-                        padding: '40px', 
-                        textAlign: 'center', 
-                        minHeight: '100vh', 
-                        background: '#325682', 
-                        color: 'white',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    } 
-                }, [
-                    createEl(DiNKRLogo, { key: 'logo', size: 'large' }),
-                    createEl('div', { key: 'loading', className: 'spinner' })
-                ]);
-            };
-
-            // Render the app
-            try {
-                ReactDOM.render(createEl(TournamentApp), document.getElementById('root'));
-                console.log('✅ Complete DiNKR Tournament System loaded successfully');
-            } catch (error) {
-                console.error('Failed to render app:', error);
-                document.getElementById('root').innerHTML = `
-                    <div style="padding: 20px; text-align: center; background: #325682; color: white; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                        <h2 style="color: #dc2626; margin-bottom: 20px;">Rendering Error</h2>
-                        <p style="margin-bottom: 20px;">Failed to initialize the tournament system.</p>
-                        <button onclick="window.location.reload()" style="background: #deff01; color: #1a202c; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold;">Reload</button>
-                    </div>
-                `;
-            }
-        }
-    </script>
-</body>
-</html>
