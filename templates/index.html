@@ -1336,11 +1336,13 @@
                 }, [timerRunning, timeRemaining]);
 
                 const showError = (message) => {
+                    console.error('DiNKR Error:', message);
                     setErrorMessage(message);
                     setTimeout(() => setErrorMessage(''), 5000);
                 };
 
                 const showSuccess = (message) => {
+                    console.log('DiNKR Success:', message);
                     setSuccessMessage(message);
                     setTimeout(() => setSuccessMessage(''), 3000);
                 };
@@ -1532,11 +1534,11 @@
                     }
                 };
 
-                // FIXED: Better error handling for round advancement
+                // FIXED: Enhanced round advancement with comprehensive error handling
                 const advanceRound = async (skipPlayers = [], playerSwitches = []) => {
                     try {
                         setLoading(true);
-                        console.log('Advancing round with skip players:', skipPlayers, 'switches:', playerSwitches);
+                        console.log('🚀 Advancing round with skip players:', skipPlayers, 'switches:', playerSwitches);
                         
                         const response = await fetch('/api/advance_round', {
                             method: 'POST',
@@ -1544,60 +1546,85 @@
                             body: JSON.stringify({ skipPlayers, playerSwitches })
                         });
 
+                        // FIXED: Enhanced response handling
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            let errorData;
+                            try {
+                                errorData = JSON.parse(errorText);
+                            } catch {
+                                errorData = { error: `HTTP ${response.status}: ${errorText}` };
+                            }
+                            console.error('❌ Advance round failed:', errorData);
+                            showError(errorData.error || 'Failed to advance round');
+                            return;
+                        }
+
                         const result = await response.json();
-                        console.log('Advance round response:', result);
+                        console.log('✅ Advance round response:', result);
 
                         if (result.completed) {
+                            console.log('🏁 Tournament completed');
                             setPhase('completed');
                             return;
                         }
 
-                        if (!response.ok) {
-                            showError(result.error || 'Failed to advance round');
-                            return;
-                        }
-
                         if (result.success) {
-                            // FIXED: Fetch fresh tournament state
+                            // FIXED: Robust state fetching with validation
                             try {
+                                console.log('📡 Fetching fresh tournament state...');
                                 const stateResponse = await fetch('/api/get_tournament_state');
                                 
                                 if (!stateResponse.ok) {
-                                    throw new Error('Failed to fetch tournament state');
+                                    throw new Error(`State fetch failed: HTTP ${stateResponse.status}`);
                                 }
                                 
                                 const state = await stateResponse.json();
-                                console.log('Fresh tournament state:', state);
+                                console.log('📊 Fresh tournament state received:', state);
                                 
-                                if (state.tournament && state.tournament.schedule) {
-                                    setTournament(state.tournament);
-                                    setCurrentRound(state.current_round);
-                                    setScores(state.scores || {});
-                                    setRoundStarted(false);
-                                    setTimerRunning(false);
-                                    setTimeRemaining(0);
-                                    setPhase('playing');
-                                    
-                                    let message = `Advanced to Round ${result.round + 1}`;
-                                    if (skipPlayers.length > 0) {
-                                        message += ` with ${skipPlayers.length} player(s) skipping`;
-                                    }
-                                    if (playerSwitches.length > 0) {
-                                        message += ` and ${playerSwitches.length} manual assignment(s)`;
-                                    }
-                                    showSuccess(message);
-                                } else {
-                                    showError('Tournament state is invalid after round advancement');
+                                // FIXED: Validate state before updating UI
+                                if (!state.tournament || !state.tournament.schedule || !state.tournament.players) {
+                                    throw new Error('Invalid tournament state received from server');
                                 }
+                                
+                                if (state.current_round < 0 || state.current_round >= state.tournament.schedule.length) {
+                                    throw new Error(`Invalid current round: ${state.current_round}`);
+                                }
+                                
+                                // Update all state atomically
+                                setTournament(state.tournament);
+                                setCurrentRound(state.current_round);
+                                setScores(state.scores || {});
+                                setRoundStarted(false);
+                                setTimerRunning(false);
+                                setTimeRemaining(0);
+                                setPhase('playing');
+                                
+                                let message = `Advanced to Round ${result.round + 1}`;
+                                if (skipPlayers.length > 0) {
+                                    message += ` with ${skipPlayers.length} player(s) skipping`;
+                                }
+                                if (playerSwitches.length > 0) {
+                                    message += ` and ${playerSwitches.length} manual assignment(s)`;
+                                }
+                                showSuccess(message);
+                                
+                                console.log('✅ Round advancement completed successfully');
+                                
                             } catch (stateError) {
-                                console.error('Error fetching tournament state:', stateError);
+                                console.error('❌ Error updating tournament state:', stateError);
                                 showError('Failed to update tournament state: ' + stateError.message);
+                                
+                                // FIXED: Don't leave the UI in a broken state
+                                setLoading(false);
+                                return;
                             }
                         } else {
+                            console.error('❌ Server reported failure:', result);
                             showError(result.error || 'Failed to advance round');
                         }
                     } catch (error) {
-                        console.error('Round advancement error:', error);
+                        console.error('❌ Network error during round advancement:', error);
                         showError('Network error: ' + error.message);
                     } finally {
                         setLoading(false);
@@ -1643,6 +1670,20 @@
                 };
 
                 const isLastMinute = timeRemaining <= 60 && timeRemaining > 0;
+
+                // FIXED: Enhanced validation for minimum players
+                const isConfigValid = () => {
+                    const minPlayers = config.courts * 4;
+                    return config.totalPlayers >= minPlayers;
+                };
+
+                const getConfigErrorMessage = () => {
+                    const minPlayers = config.courts * 4;
+                    if (config.totalPlayers < minPlayers) {
+                        return `Need at least ${minPlayers} players for ${config.courts} courts`;
+                    }
+                    return '';
+                };
 
                 // Step 1: Configuration
                 if (step === 1) {
@@ -1690,7 +1731,7 @@
                                         key: 'players',
                                         value: config.totalPlayers,
                                         onChange: (value) => setConfig(prev => ({...prev, totalPlayers: value})),
-                                        min: config.courts * 4, // FIXED: Enforce minimum players
+                                        min: 4,
                                         max: 100,
                                         label: 'Number of Players',
                                         helpText: `${config.courts * 4} will play each round. Need at least ${config.courts * 4} players.`
@@ -1768,16 +1809,30 @@
                                 ])
                             ]),
                             
+                            // FIXED: Show configuration validation error
+                            !isConfigValid() ? createEl('div', {
+                                key: 'config-error',
+                                style: {
+                                    backgroundColor: '#fed7d7',
+                                    color: '#9b2c2c',
+                                    padding: '12px',
+                                    borderRadius: '6px',
+                                    fontSize: '14px',
+                                    textAlign: 'center',
+                                    marginBottom: '16px'
+                                }
+                            }, `⚠️ ${getConfigErrorMessage()}`) : null,
+                            
                             loading ? createEl('div', { key: 'loading', className: 'spinner' }) : null,
                             
                             createEl('button', { 
                                 key: 'next', 
                                 onClick: () => setStep(2), 
-                                disabled: loading || config.totalPlayers < config.courts * 4, // FIXED: Disable if invalid
+                                disabled: loading || !isConfigValid(), 
                                 className: 'btn', 
                                 style: { 
                                     width: '100%', 
-                                    backgroundColor: (loading || config.totalPlayers < config.courts * 4) ? '#64748b' : '#deff01', 
+                                    backgroundColor: (loading || !isConfigValid()) ? '#64748b' : '#deff01', 
                                     color: '#1e293b', 
                                     padding: '18px', 
                                     fontSize: '18px',
@@ -2141,71 +2196,3 @@
                                         marginBottom: '24px', 
                                         textAlign: 'center'
                                     } 
-                                }, [
-                                    createEl('h3', { 
-                                        key: 'title',
-                                        style: { fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' } 
-                                    }, '🎯 Round 1 Assignments'),
-                                    createEl('p', { 
-                                        key: 'desc',
-                                        style: { fontSize: '14px', marginBottom: '16px' } 
-                                    }, 'Review assignments. Make changes or start Round 1.'),
-                                    createEl('div', {
-                                        key: 'buttons',
-                                        style: { display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }
-                                    }, [
-                                        createEl('button', {
-                                            key: 'adjust',
-                                            onClick: () => setShowSwitchDialog(true),
-                                            className: 'btn',
-                                            style: {
-                                                backgroundColor: '#deff01',
-                                                color: '#1a202c',
-                                                padding: '12px 20px',
-                                                fontSize: '14px',
-                                                borderRadius: '8px'
-                                            }
-                                        }, '✏️ Adjust'),
-                                        createEl('button', {
-                                            key: 'start',
-                                            onClick: startRound,
-                                            className: 'btn',
-                                            style: {
-                                                backgroundColor: '#16a34a',
-                                                color: 'white',
-                                                padding: '12px 20px',
-                                                fontSize: '14px',
-                                                borderRadius: '8px'
-                                            }
-                                        }, '▶️ Start Round 1')
-                                    ])
-                                ]),
-                                
-                                // Preview courts
-                                ...currentRoundData.matches.map((match, matchIndex) => 
-                                    createEl(Court, { 
-                                        key: `preview-${matchIndex}`, 
-                                        match, 
-                                        matchIndex, 
-                                        roundIndex: currentRound, 
-                                        courtNumber: matchIndex + 1,
-                                        scores: {},
-                                        updateScore: () => {},
-                                        onScoreValidation: () => {},
-                                        roundStarted: false
-                                    })
-                                ),
-                                
-                                // Sit outs
-                                currentRoundData.sit_outs?.length > 0 ? createEl('div', { 
-                                    key: 'sitouts', 
-                                    style: { 
-                                        backgroundColor: 'rgba(107, 114, 128, 0.5)', 
-                                        padding: '16px', 
-                                        borderRadius: '8px', 
-                                        color: 'white',
-                                        textAlign: 'center',
-                                        marginBottom: '20px'
-                                    } 
-                                }, [
-                                
