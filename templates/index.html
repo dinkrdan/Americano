@@ -493,6 +493,9 @@
                     return h('div', { style: { color: 'red' } }, 'Component Error');
                 }
             };
+
+            // *** NEW: API URL Helper ***
+            const getApiUrl = (path) => `${window.location.origin}${path}`;
             
             // Icon Components
             const ChevronLeft = () => createEl('span', { style: { fontSize: '20px' } }, '←');
@@ -1072,7 +1075,7 @@
 
                         console.log('Sending tournament request:', requestData);
 
-                        const response = await fetch('/api/generate_tournament', {
+                        const response = await fetch(getApiUrl('/api/generate_tournament'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(requestData)
@@ -1103,7 +1106,7 @@
 
                 const updateScore = async (roundIndex, matchIndex, team, score) => {
                     try {
-                        const response = await fetch('/api/update_score', {
+                        const response = await fetch(getApiUrl('/api/update_score'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ roundIndex, matchIndex, team, score })
@@ -1173,7 +1176,7 @@
                         setLoading(true);
                         console.log('Advancing to next round...');
                         
-                        const response = await fetch('/api/advance_round', {
+                        const response = await fetch(getApiUrl('/api/advance_round'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(managementState)
@@ -1194,7 +1197,7 @@
 
                         if (result.success) {
                             // Fetch fresh tournament state
-                            const stateResponse = await fetch('/api/get_tournament_state');
+                            const stateResponse = await fetch(getApiUrl('/api/get_tournament_state'));
                             
                             if (!stateResponse.ok) {
                                 throw new Error('Failed to fetch tournament state');
@@ -1231,7 +1234,7 @@
                 const handleManagementUpdate = async (updates) => {
                     setLoading(true);
                     try {
-                        const response = await fetch('/api/update_round_assignments', {
+                        const response = await fetch(getApiUrl('/api/update_round_assignments'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -1261,7 +1264,7 @@
                 const calculateTournamentResults = async () => {
                     try {
                         console.log('Calculating tournament results...');
-                        const response = await fetch('/api/calculate_results');
+                        const response = await fetch(getApiUrl('/api/calculate_results'));
                         
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
