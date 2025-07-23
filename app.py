@@ -1082,7 +1082,15 @@ if __name__ == '__main__':
     # Only run development server if running directly
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') == 'development'
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    
+    # Check if we're in production (Railway sets this)
+    if os.environ.get('RAILWAY_ENVIRONMENT'):
+        # Production: use gunicorn
+        import subprocess
+        subprocess.call(['gunicorn', '--bind', f'0.0.0.0:{port}', 'app:app'])
+    else:
+        # Development: use Flask dev server
+        app.run(host='0.0.0.0', port=port, debug=debug)
 else:
     # This runs when imported by gunicorn
     # gunicorn will find the 'app' object
